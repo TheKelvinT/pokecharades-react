@@ -34,7 +34,7 @@ export const useAdminProfile = () => {
   return useQuery<AdminProfile>({
     queryKey: ['adminProfile'],
     queryFn: async () => {
-      const response = await api.get('/admin/profile/me');
+      const response = await api.get('/admin/profile/me', { showSuccess: false });
       return response.data.data; // Return just the data property
     },
   });
