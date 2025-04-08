@@ -22,7 +22,7 @@ import {
   LoadingOutlined,
 } from '@ant-design/icons';
 import { useChangePassword } from '../../api/authApi';
-import { useAdminProfile } from '../../api/profileApi';
+import { useAdminProfile, useUpdateProfile } from '../../api/profileApi';
 import axios from 'axios';
 
 const { Title, Text } = Typography;
@@ -33,7 +33,6 @@ const AdminSettings: React.FC = () => {
   const [passwordForm] = Form.useForm();
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const { data: profileData, isLoading: isLoadingProfile } = useAdminProfile();
 
@@ -53,16 +52,30 @@ const AdminSettings: React.FC = () => {
     },
   });
 
-  const handleProfileSubmit = (values: any) => {
-    setLoading(true);
-    console.log('Profile form submitted:', values);
+  // Add the update profile mutation
+  const { mutate: updateProfile, isPending: isUpdating } = useUpdateProfile();
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      setIsEditing(false);
-      message.success('Profile updated successfully');
-    }, 1000);
+  const handleProfileSubmit = (values: any) => {
+    // Extract only the editable fields
+    const updateData = {
+      firstName: values.firstName,
+      lastName: values.lastName,
+      phoneNumber: values.phoneNumber,
+      countryCode: values.countryCode,
+    };
+
+    updateProfile(updateData, {
+      onSuccess: () => {
+        setIsEditing(false);
+      },
+      onError: (error: any) => {
+        if (axios.isAxiosError(error) && error.response) {
+          message.error(error.response.data.message || 'Failed to update profile');
+        } else {
+          message.error('Failed to update profile');
+        }
+      },
+    });
   };
 
   const handlePasswordSubmit = (values: any) => {
@@ -194,7 +207,7 @@ const AdminSettings: React.FC = () => {
                   <Button
                     type="primary"
                     htmlType="submit"
-                    loading={loading}
+                    loading={isUpdating}
                     icon={<SaveOutlined />}
                   >
                     Save
@@ -211,21 +224,21 @@ const AdminSettings: React.FC = () => {
                 <Col xs={24} md={8}>
                   <div className="mb-2">
                     <div className="text-gray-500">First Name</div>
-                    <div className="font-medium">{profileData?.data.firstName}</div>
+                    <div className="font-medium">{profileData?.firstName}</div>
                   </div>
                 </Col>
 
                 <Col xs={24} md={8}>
                   <div className="mb-2">
                     <div className="text-gray-500">Last Name</div>
-                    <div className="font-medium">{profileData?.data.lastName}</div>
+                    <div className="font-medium">{profileData?.lastName}</div>
                   </div>
                 </Col>
 
                 <Col xs={24} md={8}>
                   <div className="mb-2">
                     <div className="text-gray-500">Email</div>
-                    <div className="font-medium">{profileData?.data.email}</div>
+                    <div className="font-medium">{profileData?.email}</div>
                   </div>
                 </Col>
 
@@ -233,7 +246,7 @@ const AdminSettings: React.FC = () => {
                   <div className="mb-2">
                     <div className="text-gray-500">Phone</div>
                     <div className="font-medium">
-                      {profileData?.data.countryCode} {profileData?.data.phoneNumber}
+                      {profileData?.countryCode} {profileData?.phoneNumber}
                     </div>
                   </div>
                 </Col>
@@ -241,7 +254,7 @@ const AdminSettings: React.FC = () => {
                 <Col xs={24} md={8}>
                   <div className="mb-2">
                     <div className="text-gray-500">Role</div>
-                    <div className="font-medium">{profileData?.data.role}</div>
+                    <div className="font-medium">{profileData?.role}</div>
                   </div>
                 </Col>
               </Row>
