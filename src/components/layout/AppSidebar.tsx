@@ -22,7 +22,6 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed }) => {
   const getSelectedKeys = () => {
     const path = location.pathname;
     if (path.includes('/dashboard')) return ['dashboard'];
-    if (path.includes('/admin/settings')) return ['admin_settings'];
     if (path.includes('/admin/tiers')) return ['tiers'];
     if (path.includes('/admin/packages')) return ['packages'];
     if (path.includes('/members/subscribed')) return ['subscribed_members'];
@@ -57,12 +56,8 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed }) => {
           {
             key: 'system',
             icon: <SettingOutlined />,
-            label: 'System & Admin',
+            label: 'System Settings',
             children: [
-              {
-                key: 'admin_settings',
-                label: <Link to="/admin/settings">Admin Settings</Link>,
-              },
               {
                 key: 'tiers',
                 label: <Link to="/admin/tiers">Tier List</Link>,

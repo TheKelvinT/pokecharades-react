@@ -52,7 +52,7 @@ const AppRouter: React.FC = () => {
           }
         >
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin" element={<AdminSettings />} />
           <Route path="/admin/tiers" element={<TierList />} />
           <Route path="/admin/packages" element={<PackageList />} />
           <Route path="/members" element={<MembershipManagement />} />

@@ -1,6 +1,13 @@
 // api.ts
-import axios, { AxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import { message } from 'antd';
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    showSuccess?: boolean;
+    suppressError?: boolean;
+  }
+}
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_BASE_URL, // Replace with your actual API
@@ -11,7 +18,7 @@ const api = axios.create({
 // Attach access token to all requests
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers = config.headers || {};
       config.headers['Authorization'] = `Bearer ${token}`;
@@ -55,12 +62,16 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const res = await axios.post('https://your-api.com/auth/refresh', {
-          refreshToken: localStorage.getItem('refresh_token'),
-        });
+        const res = await axios.post(
+          'https://your-api.com/auth/refresh',
+          {
+            refreshToken: localStorage.getItem('refreshToken'),
+          },
+          { withCredentials: true }
+        );
 
         const newAccessToken = res.data.accessToken;
-        localStorage.setItem('access_token', newAccessToken);
+        localStorage.setItem('accessToken', newAccessToken);
 
         // Retry original request with new token
         originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;

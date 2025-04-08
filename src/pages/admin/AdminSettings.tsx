@@ -1,36 +1,57 @@
 import React, { useState } from 'react';
 import {
   Card,
-  Tabs,
   Form,
   Input,
   Button,
-  Upload,
-  Avatar,
-  message,
-  Switch,
-  Divider,
   Typography,
   Row,
   Col,
+  Divider,
+  Select,
+  Space,
+  message,
+  Alert,
 } from 'antd';
-import {
-  UserOutlined,
-  UploadOutlined,
-  LockOutlined,
-  MailOutlined,
-  BellOutlined,
-} from '@ant-design/icons';
-import type { TabsProps } from 'antd';
+import { EditOutlined, SaveOutlined, CloseOutlined, LockOutlined } from '@ant-design/icons';
+import { useChangePassword } from '../../api/authApi';
+import axios from 'axios';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
 
 const AdminSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [passwordForm] = Form.useForm();
-  const [notificationForm] = Form.useForm();
-
+  const [isEditing, setIsEditing] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Initial profile data
+  const profileData = {
+    firstName: 'Admin',
+    lastName: 'User',
+    email: 'admin@example.com',
+    phoneNumber: '5551234567',
+    countryCode: '+1',
+    role: 'Administrator',
+  };
+
+  // Add the new mutation hook
+  const { mutate: changePassword, isPending: isChangingPassword } = useChangePassword({
+    onSuccess: () => {
+      // message.success('Password updated successfully');
+      setShowPasswordForm(false);
+      passwordForm.resetFields();
+    },
+    onError: (error: any) => {
+      if (axios.isAxiosError(error) && error.response) {
+        message.error(error.response.data.message || 'Failed to update password');
+      } else {
+        message.error('Failed to update password');
+      }
+    },
+  });
 
   const handleProfileSubmit = (values: any) => {
     setLoading(true);
@@ -39,214 +60,289 @@ const AdminSettings: React.FC = () => {
     // Simulate API call
     setTimeout(() => {
       setLoading(false);
+      setIsEditing(false);
       message.success('Profile updated successfully');
     }, 1000);
   };
 
   const handlePasswordSubmit = (values: any) => {
-    setLoading(true);
-    console.log('Password form submitted:', values);
+    // Extract only the fields needed for the API
+    const passwordData = {
+      currentPassword: values.currentPassword,
+      newPassword: values.newPassword,
+    };
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      message.success('Password updated successfully');
+    // Call the API
+    changePassword(passwordData);
+  };
+
+  const startEditing = () => {
+    form.setFieldsValue(profileData);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+  };
+
+  const togglePasswordForm = () => {
+    if (showPasswordForm) {
       passwordForm.resetFields();
-    }, 1000);
+    }
+    setShowPasswordForm(!showPasswordForm);
   };
 
-  const handleNotificationSubmit = (values: any) => {
-    setLoading(true);
-    console.log('Notification settings submitted:', values);
+  // Password validation pattern
+  const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      message.success('Notification settings updated successfully');
-    }, 1000);
-  };
-
-  const profileTab = (
-    <Form
-      form={form}
-      layout="vertical"
-      initialValues={{
-        name: 'Admin User',
-        email: 'admin@example.com',
-        phone: '+1 234 567 8900',
-        role: 'Administrator',
-      }}
-      onFinish={handleProfileSubmit}
-    >
-      <div className="flex flex-col md:flex-row gap-8 mb-6">
-        <div className="flex flex-col items-center">
-          <Avatar size={100} icon={<UserOutlined />} />
-          <Upload showUploadList={false}>
-            <Button icon={<UploadOutlined />} className="mt-4">
-              Change Avatar
-            </Button>
-          </Upload>
-        </div>
-
-        <div className="flex-1">
-          <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="name"
-                label="Full Name"
-                rules={[{ required: true, message: 'Please input your name!' }]}
-              >
-                <Input prefix={<UserOutlined />} />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="email"
-                label="Email"
-                rules={[
-                  { required: true, message: 'Please input your email!' },
-                  { type: 'email', message: 'Please enter a valid email!' },
-                ]}
-              >
-                <Input prefix={<MailOutlined />} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item name="phone" label="Phone Number">
-                <Input />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} md={12}>
-              <Form.Item name="role" label="Role">
-                <Input disabled />
-              </Form.Item>
-            </Col>
-          </Row>
-        </div>
-      </div>
-
-      <Divider />
-
-      <Form.Item>
-        <Button type="primary" htmlType="submit" loading={loading}>
-          Save Changes
-        </Button>
-      </Form.Item>
-    </Form>
+  // Prefixes for the phone input
+  const prefixSelector = (
+    <Form.Item name="countryCode" noStyle>
+      <Select style={{ width: 80 }}>
+        <Option value="+1">+1</Option>
+        <Option value="+44">+44</Option>
+        <Option value="+61">+61</Option>
+        <Option value="+86">+86</Option>
+        <Option value="+91">+91</Option>
+      </Select>
+    </Form.Item>
   );
-
-  const securityTab = (
-    <Form form={passwordForm} layout="vertical" onFinish={handlePasswordSubmit}>
-      <Form.Item
-        name="currentPassword"
-        label="Current Password"
-        rules={[{ required: true, message: 'Please input your current password!' }]}
-      >
-        <Input.Password prefix={<LockOutlined />} />
-      </Form.Item>
-
-      <Form.Item
-        name="newPassword"
-        label="New Password"
-        rules={[
-          { required: true, message: 'Please input your new password!' },
-          { min: 8, message: 'Password must be at least 8 characters!' },
-        ]}
-      >
-        <Input.Password prefix={<LockOutlined />} />
-      </Form.Item>
-
-      <Form.Item
-        name="confirmPassword"
-        label="Confirm New Password"
-        dependencies={['newPassword']}
-        rules={[
-          { required: true, message: 'Please confirm your new password!' },
-          ({ getFieldValue }) => ({
-            validator(_, value) {
-              if (!value || getFieldValue('newPassword') === value) {
-                return Promise.resolve();
-              }
-              return Promise.reject(new Error('The two passwords do not match!'));
-            },
-          }),
-        ]}
-      >
-        <Input.Password prefix={<LockOutlined />} />
-      </Form.Item>
-
-      <Form.Item>
-        <Button type="primary" htmlType="submit" loading={loading}>
-          Update Password
-        </Button>
-      </Form.Item>
-    </Form>
-  );
-
-  const notificationsTab = (
-    <Form
-      form={notificationForm}
-      layout="vertical"
-      initialValues={{
-        emailNotifications: true,
-        memberAlerts: true,
-        eventAlerts: true,
-        systemUpdates: false,
-      }}
-      onFinish={handleNotificationSubmit}
-    >
-      <Form.Item name="emailNotifications" label="Email Notifications" valuePropName="checked">
-        <Switch />
-      </Form.Item>
-
-      <Form.Item name="memberAlerts" label="Member Alerts" valuePropName="checked">
-        <Switch />
-      </Form.Item>
-
-      <Form.Item name="eventAlerts" label="Event Alerts" valuePropName="checked">
-        <Switch />
-      </Form.Item>
-
-      <Form.Item name="systemUpdates" label="System Updates" valuePropName="checked">
-        <Switch />
-      </Form.Item>
-
-      <Form.Item>
-        <Button type="primary" htmlType="submit" loading={loading}>
-          Save Preferences
-        </Button>
-      </Form.Item>
-    </Form>
-  );
-
-  const items: TabsProps['items'] = [
-    {
-      key: '1',
-      label: 'Profile',
-      children: profileTab,
-    },
-    {
-      key: '2',
-      label: 'Security',
-      children: securityTab,
-    },
-    {
-      key: '3',
-      label: 'Notifications',
-      children: notificationsTab,
-    },
-  ];
 
   return (
     <div>
-      <Title level={2}>Account Settings</Title>
-      <Card>
-        <Tabs defaultActiveKey="1" items={items} />
+      <Title level={2}>Admin Settings</Title>
+
+      {/* Admin Information Section */}
+      <Card
+        title="Admin Information"
+        extra={
+          !isEditing && (
+            <Button type="primary" icon={<EditOutlined />} onClick={startEditing}>
+              Edit
+            </Button>
+          )
+        }
+        className="mb-6"
+      >
+        {isEditing ? (
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={profileData}
+            onFinish={handleProfileSubmit}
+            validateTrigger={['onBlur']}
+          >
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="firstName"
+                  label="First Name"
+                  validateTrigger={['onBlur']}
+                  rules={[{ required: true, message: 'Please input your first name' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="lastName"
+                  label="Last Name"
+                  validateTrigger={['onBlur']}
+                  rules={[{ required: true, message: 'Please input your last name' }]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="email"
+                  label="Email"
+                  validateTrigger={['onBlur']}
+                  rules={[
+                    { required: true, message: 'Please input your email' },
+                    { type: 'email', message: 'Please enter a valid email' },
+                  ]}
+                >
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="phoneNumber"
+                  label="Phone Number"
+                  validateTrigger={['onBlur']}
+                  rules={[{ required: true, message: 'Please input your phone number' }]}
+                >
+                  <Input addonBefore={prefixSelector} />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item name="role" label="Role">
+                  <Input disabled />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Divider />
+
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
+                  Save
+                </Button>
+                <Button onClick={cancelEditing} icon={<CloseOutlined />}>
+                  Cancel
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        ) : (
+          <div>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={8}>
+                <div className="mb-2">
+                  <div className="text-gray-500">First Name</div>
+                  <div className="font-medium">{profileData.firstName}</div>
+                </div>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <div className="mb-2">
+                  <div className="text-gray-500">Last Name</div>
+                  <div className="font-medium">{profileData.lastName}</div>
+                </div>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <div className="mb-2">
+                  <div className="text-gray-500">Email</div>
+                  <div className="font-medium">{profileData.email}</div>
+                </div>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <div className="mb-2">
+                  <div className="text-gray-500">Phone</div>
+                  <div className="font-medium">
+                    {profileData.countryCode} {profileData.phoneNumber}
+                  </div>
+                </div>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <div className="mb-2">
+                  <div className="text-gray-500">Role</div>
+                  <div className="font-medium">{profileData.role}</div>
+                </div>
+              </Col>
+            </Row>
+          </div>
+        )}
+      </Card>
+
+      {/* Security Section */}
+      <Card title="Security">
+        {showPasswordForm ? (
+          <Form
+            form={passwordForm}
+            layout="vertical"
+            onFinish={handlePasswordSubmit}
+            validateTrigger={['onBlur']}
+          >
+            <Alert
+              message="Password Requirements"
+              description="Password must be at least 8 characters and include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character."
+              type="info"
+              showIcon
+              className="mb-4"
+            />
+
+            <Row gutter={16}>
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="currentPassword"
+                  label="Current Password"
+                  validateTrigger={['onBlur']}
+                  rules={[{ required: true, message: 'Please input your current password' }]}
+                >
+                  <Input.Password />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="newPassword"
+                  label="New Password"
+                  validateTrigger={['onBlur']}
+                  rules={[
+                    { required: true, message: 'Please input your new password' },
+                    { min: 8, message: 'Password must be at least 8 characters' },
+                    {
+                      pattern: passwordPattern,
+                      message:
+                        'Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character',
+                    },
+                  ]}
+                >
+                  <Input.Password />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={8}>
+                <Form.Item
+                  name="confirmPassword"
+                  label="Confirm New Password"
+                  validateTrigger={['onBlur']}
+                  dependencies={['newPassword']}
+                  rules={[
+                    { required: true, message: 'Please confirm your new password' },
+                    ({ getFieldValue }) => ({
+                      validator(_, value) {
+                        if (!value || getFieldValue('newPassword') === value) {
+                          return Promise.resolve();
+                        }
+                        return Promise.reject(new Error('The two passwords do not match'));
+                      },
+                    }),
+                  ]}
+                >
+                  <Input.Password />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item>
+              <Space>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={isChangingPassword}
+                  icon={<SaveOutlined />}
+                >
+                  Update Password
+                </Button>
+                <Button onClick={togglePasswordForm} icon={<CloseOutlined />}>
+                  Cancel
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        ) : (
+          <div>
+            <Space direction="vertical" className="w-full">
+              <Text>Change your password to maintain account security.</Text>
+              <Button type="primary" icon={<LockOutlined />} onClick={togglePasswordForm}>
+                Change Password
+              </Button>
+            </Space>
+          </div>
+        )}
       </Card>
     </div>
   );

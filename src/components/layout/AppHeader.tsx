@@ -32,9 +32,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({ collapsed, setCollapsed }) => {
   const items: MenuProps['items'] = [
     {
       key: '1',
-      label: 'Profile Settings',
+      label: 'Admin Settings',
       icon: <SettingOutlined />,
-      onClick: () => navigate('/admin/settings'),
+      onClick: () => navigate('/admin'),
     },
     {
       key: '2',

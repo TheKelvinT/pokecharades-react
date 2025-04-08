@@ -1,6 +1,6 @@
 // src/api/auth/hooks.ts
 import { useMutation, UseMutationOptions } from '@tanstack/react-query';
-import api from '../utils/http';
+import api from '../utils/api';
 import axios from 'axios';
 
 interface LoginPayload {
@@ -9,9 +9,14 @@ interface LoginPayload {
 }
 
 interface LoginResponse {
-  access_token: string;
-  refresh_token: string;
+  accessToken: string;
+  refreshToken: string;
   user: any;
+}
+
+interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export const useLogin = (options?: UseMutationOptions<LoginResponse, Error, LoginPayload>) => {
@@ -21,7 +26,7 @@ export const useLogin = (options?: UseMutationOptions<LoginResponse, Error, Logi
       return response.data;
     },
     onSuccess: data => {
-      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('accessToken', data.accessToken);
     },
     onError: (error: any) => {
       if (axios.isAxiosError(error) && error.response) {
@@ -35,19 +40,19 @@ export const useLogin = (options?: UseMutationOptions<LoginResponse, Error, Logi
 export const useLogout = (options?: UseMutationOptions<any, Error, void>) => {
   return useMutation({
     mutationFn: async () => {
-      const refresh_token = localStorage.getItem('refresh_token');
+      const refreshToken = localStorage.getItem('refreshToken');
 
       // Send POST request with refresh token in the body
       const response = await api.post('/admin/auth/logout', {
-        refresh_token: refresh_token,
+        refreshToken: refreshToken,
       });
 
       return response.data;
     },
     onSuccess: () => {
       // Clear tokens from localStorage after successful logout
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
 
       // You can add additional success callback here if needed
       options?.onSuccess?.(undefined, undefined, undefined);
@@ -59,11 +64,35 @@ export const useLogout = (options?: UseMutationOptions<any, Error, void>) => {
       }
 
       // Still remove tokens even if API call fails
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
 
       // Pass error to custom handler if provided
       options?.onError?.(error, undefined, undefined);
+    },
+    ...options,
+  });
+};
+
+export const useChangePassword = (
+  options?: UseMutationOptions<any, Error, ChangePasswordPayload>
+) => {
+  return useMutation({
+    mutationFn: async (passwordData: ChangePasswordPayload) => {
+      const response = await api.post('/admin/auth/change-password', passwordData);
+      return { data: response.data, passwordData };
+    },
+    onSuccess: ({ data, passwordData }) => {
+      // Call the provided success callback if it exists
+      options?.onSuccess?.(data, passwordData, undefined);
+    },
+    onError: (error: any, passwordData) => {
+      if (axios.isAxiosError(error) && error.response) {
+        console.error('Change password error:', error.response.data);
+      }
+
+      // Call the provided error callback if it exists
+      options?.onError?.(error, passwordData, undefined);
     },
     ...options,
   });

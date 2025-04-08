@@ -1,5 +1,5 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Form, Input, message } from 'antd';
+import { Button, Form, Input } from 'antd';
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
@@ -16,8 +16,8 @@ const Login: React.FC = () => {
       // Store tokens in Redux
       dispatch(
         setCredentials({
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token,
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
         })
       );
 
