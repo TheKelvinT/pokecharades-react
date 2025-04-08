@@ -63,7 +63,7 @@ api.interceptors.response.use(
 
       try {
         const res = await axios.post(
-          'https://your-api.com/auth/refresh',
+          `${import.meta.env.VITE_BASE_URL}/admin/auth/refresh-token`,
           {
             refreshToken: localStorage.getItem('refreshToken'),
           },

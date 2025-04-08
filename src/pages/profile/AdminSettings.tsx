@@ -122,7 +122,7 @@ const AdminSettings: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen">
       <Title level={2}>Admin Settings</Title>
 
       {/* Admin Information Section */}
@@ -159,7 +159,7 @@ const AdminSettings: React.FC = () => {
                     validateTrigger={['onBlur']}
                     rules={[{ required: true, message: 'Please input your first name' }]}
                   >
-                    <Input />
+                    <Input className="font-bold" />
                   </Form.Item>
                 </Col>
 
@@ -170,13 +170,13 @@ const AdminSettings: React.FC = () => {
                     validateTrigger={['onBlur']}
                     rules={[{ required: true, message: 'Please input your last name' }]}
                   >
-                    <Input />
+                    <Input className="font-bold" />
                   </Form.Item>
                 </Col>
 
                 <Col xs={24} md={8}>
                   <Form.Item name="email" label="Email">
-                    <Input disabled />
+                    <Input disabled className="font-bold" />
                   </Form.Item>
                 </Col>
               </Row>
@@ -189,13 +189,13 @@ const AdminSettings: React.FC = () => {
                     validateTrigger={['onBlur']}
                     rules={[{ required: true, message: 'Please input your phone number' }]}
                   >
-                    <Input addonBefore={prefixSelector} />
+                    <Input addonBefore={prefixSelector} className="font-bold" />
                   </Form.Item>
                 </Col>
 
                 <Col xs={24} md={8}>
                   <Form.Item name="role" label="Role">
-                    <Input disabled />
+                    <Input disabled className="font-bold" />
                   </Form.Item>
                 </Col>
               </Row>

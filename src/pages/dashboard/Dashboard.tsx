@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Statistic, Typography, Button, Divider, List, Space } from 'antd';
 import {
-  ArrowUpOutlined,
   ArrowDownOutlined,
-  UserOutlined,
-  DollarOutlined,
+  ArrowUpOutlined,
   CalendarOutlined,
-  TeamOutlined,
+  DollarOutlined,
   PlusOutlined,
-  TrophyOutlined,
+  TeamOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
+import { Button, Card, Col, List, Row, Space, Statistic, Typography } from 'antd';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { quickActions, summaryNumbers } from '../../services/mockData';
 import DashboardLoader from '../../components/common/DashboardLoader';
+import { quickActions, summaryNumbers } from '../../services/mockData';
 
 const { Title } = Typography;
 

@@ -18,10 +18,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <Layout style={{ margin: 0, padding: 0 }}>
         <AppHeader collapsed={collapsed} setCollapsed={setCollapsed} />
         <Content
-          className="site-layout-background"
+          className="site-layout-background p-8"
           style={{
             margin: 0,
-            padding: 0,
             minHeight: '100vh',
             overflow: 'auto',
           }}
