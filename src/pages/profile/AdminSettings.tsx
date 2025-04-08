@@ -130,11 +130,11 @@ const AdminSettings: React.FC = () => {
             <div className="flex items-center justify-center ">
               <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
             </div>
-          ) : isEditing && profileData ? (
+          ) : isEditing ? (
             <Form
               form={form}
               layout="vertical"
-              initialValues={profileData.data}
+              initialValues={profileData}
               onFinish={handleProfileSubmit}
               validateTrigger={['onBlur']}
             >
@@ -210,10 +210,15 @@ const AdminSettings: React.FC = () => {
               <Row gutter={[16, 16]}>
                 <Col xs={24} md={8}>
                   <div className="mb-2">
-                    <div className="text-gray-500">Full Name</div>
-                    <div className="font-medium">
-                      {profileData?.data.firstName} {profileData?.data.lastName}
-                    </div>
+                    <div className="text-gray-500">First Name</div>
+                    <div className="font-medium">{profileData?.data.firstName}</div>
+                  </div>
+                </Col>
+
+                <Col xs={24} md={8}>
+                  <div className="mb-2">
+                    <div className="text-gray-500">Last Name</div>
+                    <div className="font-medium">{profileData?.data.lastName}</div>
                   </div>
                 </Col>
 
