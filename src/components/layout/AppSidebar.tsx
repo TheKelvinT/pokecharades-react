@@ -34,8 +34,21 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed }) => {
   };
 
   return (
-    <Sider trigger={null} collapsible collapsed={collapsed} width={250}>
-      <div className="p-4 h-16 flex items-center justify-center">
+    <Sider
+      trigger={null}
+      collapsible
+      collapsed={collapsed}
+      width={250}
+      style={{
+        position: 'sticky',
+        top: 0,
+        height: '100vh',
+        overflow: 'auto',
+        margin: 0,
+        padding: 0,
+      }}
+    >
+      <div className="h-16 flex items-center justify-center" style={{ margin: 0, padding: 0 }}>
         <h1
           className={`text-white text-xl font-bold ${collapsed ? 'scale-0' : 'scale-100'} transition-all duration-300`}
         >
@@ -47,6 +60,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed }) => {
         theme="dark"
         mode="inline"
         selectedKeys={getSelectedKeys()}
+        style={{ margin: 0, padding: 0 }}
         items={[
           {
             key: 'dashboard',

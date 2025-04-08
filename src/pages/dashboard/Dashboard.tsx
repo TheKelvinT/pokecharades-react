@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
 
         setDashboardData(data);
         setLoading(false);
-      }, 3000); // 3 second delay to clearly see the loader
+      }, 1000); // 3 second delay to clearly see the loader
     };
 
     fetchData();

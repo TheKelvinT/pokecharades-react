@@ -46,7 +46,20 @@ const AppHeader: React.FC<AppHeaderProps> = ({ collapsed, setCollapsed }) => {
   ];
 
   return (
-    <Header className="flex justify-between items-center px-6 shadow-sm">
+    <Header
+      className="flex justify-between items-center shadow-sm"
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 1,
+        width: '100%',
+        background: '#fff',
+        margin: 0,
+        padding: '0 16px',
+        height: '64px',
+        lineHeight: '64px',
+      }}
+    >
       <Button
         type="text"
         icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}

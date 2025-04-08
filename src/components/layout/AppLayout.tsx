@@ -13,16 +13,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', margin: 0, padding: 0 }}>
       <AppSidebar collapsed={collapsed} />
-      <Layout>
+      <Layout style={{ margin: 0, padding: 0 }}>
         <AppHeader collapsed={collapsed} setCollapsed={setCollapsed} />
         <Content
           className="site-layout-background"
           style={{
-            margin: '24px 16px',
-            padding: 24,
-            minHeight: 280,
+            margin: 0,
+            padding: 0,
+            minHeight: '100vh',
+            overflow: 'auto',
           }}
         >
           {children}
