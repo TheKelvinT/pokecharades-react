@@ -1,19 +1,12 @@
-import { Table, Tag, Input, Select, Space, Button, Spin, Tooltip } from 'antd';
+import { EditOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Space, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useTiers } from '../../api/tierApi';
-import { useTableConfig } from '../../hooks/useTableConfig';
-import { useState, useEffect, useCallback } from 'react';
-import {
-  SearchOutlined,
-  ReloadOutlined,
-  LoadingOutlined,
-  EditOutlined,
-  EyeOutlined,
-} from '@ant-design/icons';
-import { debounce } from 'lodash';
+import { FilterValue, SorterResult, TablePaginationConfig } from 'antd/es/table/interface';
 import dayjs from 'dayjs';
-import { TablePaginationConfig, FilterValue, SorterResult } from 'antd/es/table/interface';
+import { debounce } from 'lodash';
+import { useCallback } from 'react';
 import DashboardLoader from '../common/DashboardLoader';
+import { TableParams } from '../../types/common/Common';
 
 interface TierTableProps {
   tierType?: 'MONTHLY' | 'YEARLY';
@@ -51,7 +44,6 @@ interface TierData {
 }
 
 const TierTable: React.FC<TierTableProps> = ({
-  tierType,
   onShowDrawer,
   loading,
   data,
@@ -172,14 +164,14 @@ const TierTable: React.FC<TierTableProps> = ({
       width: '10%',
       render: (_, record) => (
         <Space size="middle">
-          <Tooltip title="View">
+          <Tooltip title="View" trigger="hover">
             <Button
               type="text"
               icon={<EyeOutlined />}
               onClick={() => onShowDrawer?.('view', record)}
             />
           </Tooltip>
-          <Tooltip title="Edit">
+          <Tooltip title="Edit" trigger="hover">
             <Button
               type="text"
               icon={<EditOutlined />}
@@ -195,14 +187,15 @@ const TierTable: React.FC<TierTableProps> = ({
   const handleTableParamsChange = (
     pagination: TablePaginationConfig,
     filters: Record<string, FilterValue | null>,
-    sorter: SorterResult<any>
+    sorter: SorterResult<TierData> | SorterResult<TierData>[]
   ) => {
+    const sort = Array.isArray(sorter) ? sorter[0] : sorter;
     onTableChange(
       {
         pagination,
         filters,
-        sortField: sorter.field as string,
-        sortOrder: sorter.order as string,
+        sortField: sort.field as string,
+        sortOrder: sort.order as 'ascend' | 'descend' | undefined,
       },
       {
         search: filters.searchText?.[0] as string,

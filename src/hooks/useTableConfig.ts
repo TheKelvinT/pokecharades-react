@@ -1,43 +1,24 @@
 import { useState } from 'react';
-import type { TablePaginationConfig } from 'antd/es/table';
-import type { FilterValue, SorterResult } from 'antd/es/table/interface';
+import { TablePaginationConfig, SorterResult } from 'antd/es/table/interface';
+import { TableParams } from '../types/common/Common';
 
-interface TableParams {
-  pagination: TablePaginationConfig;
-  sortField?: string;
-  sortOrder?: string;
-  filters?: Record<string, FilterValue | null>;
-}
-
-export const useTableConfig = (initialParams?: Partial<TableParams>) => {
-  const [tableParams, setTableParams] = useState<TableParams>({
-    pagination: {
-      current: 1,
-      pageSize: 10,
-      ...initialParams?.pagination,
-    },
-    sortField: initialParams?.sortField,
-    sortOrder: initialParams?.sortOrder,
-    filters: initialParams?.filters || {},
-  });
+export const useTableConfig = (initialConfig: TableParams) => {
+  const [tableParams, setTableParams] = useState<TableParams>(initialConfig);
 
   const handleTableChange = (
     pagination: TablePaginationConfig,
-    filters: Record<string, FilterValue | null>,
+    filters: Record<string, any>,
     sorter: SorterResult<any> | SorterResult<any>[]
   ) => {
-    const sort = Array.isArray(sorter) ? sorter[0] : sorter;
-
     setTableParams({
       pagination,
+      sortField: Array.isArray(sorter) ? undefined : (sorter.field as string),
+      sortOrder: Array.isArray(sorter)
+        ? undefined
+        : (sorter.order as 'ascend' | 'descend' | undefined),
       filters,
-      sortField: sort.field as string,
-      sortOrder: sort.order as string,
     });
   };
 
-  return {
-    tableParams,
-    handleTableChange,
-  };
+  return { tableParams, handleTableChange };
 };
