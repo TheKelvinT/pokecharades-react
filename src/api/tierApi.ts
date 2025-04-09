@@ -135,13 +135,56 @@ export const useUpdateTier = () => {
       const response = await api.put(`/admin/tier/${id}`, payload);
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['tiers'],
       });
       queryClient.invalidateQueries({
         queryKey: ['activeTiers'],
       });
+    },
+  });
+};
+
+export const useDeactivateTierStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.put(
+        `/admin/tier/${id}/deactivate`,
+        {},
+        {
+          showSuccess: false,
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate both queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['tiers'] });
+      queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
+    },
+  });
+};
+
+export const useSetRecommended = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.put(
+        `/admin/tier/${id}/set-recommended`,
+        {},
+        {
+          showSuccess: false,
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tiers'] });
+      queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
     },
   });
 };

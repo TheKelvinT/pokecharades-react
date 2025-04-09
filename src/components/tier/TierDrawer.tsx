@@ -23,14 +23,12 @@ interface TierData {
   id?: string;
   name: string;
   tierType: 'MONTHLY' | 'YEARLY';
-  price: number;
-  features: string[];
+  originalPrice: number;
+  discountAmount: number;
+  discountType: 'PERCENT' | 'WHOLE_NUMBER';
   isActive: boolean;
   isRecommended?: boolean;
-  discountAmount?: number;
-  discountType?: 'PERCENT' | 'WHOLE_NUMBER';
   monthlyEntries?: number;
-  originalPrice?: number;
   summary?: string;
   benefits?: string[];
   createdAt?: string;
@@ -89,7 +87,6 @@ const TierDrawer: React.FC<TierDrawerProps> = ({
     if (open && mode !== 'create' && tierData) {
       form.setFieldsValue({
         ...tierData,
-        features: tierData.features?.join('\n'),
         benefits: tierData.benefits || [],
         active: tierData.isActive,
         isRecommended: tierData.isRecommended || false,
