@@ -26,8 +26,7 @@ const { Text } = Typography;
 interface PackageData {
   id?: string;
   name: string;
-  tier: string;
-  duration: number;
+
   price: number;
   discount: number;
   isActive: boolean;
@@ -101,8 +100,7 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
       const values = await form.validateFields();
       const payload = {
         name: values.name,
-        tier: values.tier,
-        duration: values.duration,
+
         price: values.price,
         discount: values.discount || 0,
         giveawayEntries: values.giveawayEntries,
@@ -146,10 +144,7 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
       <div className="mb-4 flex justify-end"></div>
       <Descriptions column={1} bordered>
         <Descriptions.Item label="Name">{packageData?.name}</Descriptions.Item>
-        <Descriptions.Item label="Tier">{packageData?.tier}</Descriptions.Item>
-        <Descriptions.Item label="Duration">
-          {packageData?.duration} {packageData?.duration === 1 ? 'month' : 'months'}
-        </Descriptions.Item>
+
         <Descriptions.Item label="Original Price">
           ${packageData?.price?.toFixed(2)}
         </Descriptions.Item>
@@ -188,62 +183,27 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
       <Form form={form} layout="vertical" name="package_form">
         <Form.Item
           name="name"
-          label={
-            <span>
-              Name <span style={{ color: '#ff4d4f' }}>*</span>
-            </span>
-          }
+          label="Name"
           rules={[{ required: true, message: 'Please enter package name' }]}
         >
           <Input placeholder="Enter package name" />
         </Form.Item>
 
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              name="tier"
-              label={
-                <span>
-                  Tier <span style={{ color: '#ff4d4f' }}>*</span>
-                </span>
-              }
-              rules={[{ required: true, message: 'Please select tier' }]}
-            >
-              <Select placeholder="Select tier">
-                {tiersList.map(tier => (
-                  <Select.Option key={tier.id} value={tier.name}>
-                    {tier.name}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="giveawayEntries"
-              label={
-                <span>
-                  Giveaway Entries <span style={{ color: '#ff4d4f' }}>*</span>
-                </span>
-              }
-              rules={[{ required: true, message: 'Please enter giveaway entries' }]}
-            >
-              <InputNumber
-                min={1}
-                style={{ width: '100%' }}
-                placeholder="Enter number of giveaway entries"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item
+          name="giveawayEntries"
+          label="Giveaway Entries"
+          rules={[{ required: true, message: 'Please enter giveaway entries' }]}
+        >
+          <InputNumber
+            min={1}
+            style={{ width: '100%' }}
+            placeholder="Enter number of giveaway entries"
+          />
+        </Form.Item>
 
         <Form.Item
           name="price"
-          label={
-            <span>
-              Original Price <span style={{ color: '#ff4d4f' }}>*</span>
-            </span>
-          }
+          label="Original Price"
           rules={[{ required: true, message: 'Please enter original price' }]}
         >
           <InputNumber
@@ -255,44 +215,26 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
           />
         </Form.Item>
 
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item
-              name="duration"
-              label={
-                <span>
-                  Duration (months) <span style={{ color: '#ff4d4f' }}>*</span>
-                </span>
-              }
-              rules={[{ required: true, message: 'Please enter duration' }]}
-            >
-              <InputNumber min={1} max={60} style={{ width: '100%' }} />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="discount" label="Discount Amount">
-              <InputNumber
-                min={0}
-                max={100}
-                precision={1}
-                style={{ width: '100%' }}
-                placeholder="Enter percentage"
-                suffix="%"
-              />
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="finalPrice" label="Final Price">
-              <InputNumber
-                prefix="$"
-                precision={2}
-                style={{ width: '100%' }}
-                disabled
-                className="bg-gray-50"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item name="discount" label="Discount Amount">
+          <InputNumber
+            min={0}
+            max={100}
+            precision={1}
+            style={{ width: '100%' }}
+            placeholder="Enter percentage"
+            suffix="%"
+          />
+        </Form.Item>
+
+        <Form.Item name="finalPrice" label="Final Price">
+          <InputNumber
+            prefix="$"
+            precision={2}
+            style={{ width: '100%' }}
+            disabled
+            className="bg-gray-50"
+          />
+        </Form.Item>
 
         <Form.Item name="summary" label="Summary">
           <Input.TextArea
@@ -304,48 +246,45 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
         </Form.Item>
 
         {mode === 'edit' && (
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="active"
-                label="Status"
-                valuePropName="checked"
-                help={
-                  activeCount >= maxActivePackages
-                    ? `Maximum ${maxActivePackages} active packages allowed`
-                    : undefined
-                }
-              >
-                <Switch
-                  checkedChildren="Active"
-                  unCheckedChildren="Inactive"
-                  disabled={!editingId && activeCount >= maxActivePackages}
-                />
-              </Form.Item>
-            </Col>
+          <>
+            <Form.Item
+              name="active"
+              label="Status"
+              valuePropName="checked"
+              help={
+                activeCount >= maxActivePackages
+                  ? `Maximum ${maxActivePackages} active packages allowed`
+                  : undefined
+              }
+            >
+              <Switch
+                checkedChildren="Active"
+                unCheckedChildren="Inactive"
+                disabled={!editingId && activeCount >= maxActivePackages}
+              />
+            </Form.Item>
+
             {isActive && (
-              <Col span={12}>
-                <Form.Item
-                  name="position"
-                  label="Position"
-                  rules={[
-                    {
-                      required: isActive,
-                      message: 'Please select a position for the active package',
-                    },
-                  ]}
-                >
-                  <Radio.Group disabled={!isActive}>
-                    {[1, 2, 3, 4, 5].map(pos => (
-                      <Radio.Button key={pos} value={pos}>
-                        Position {pos}
-                      </Radio.Button>
-                    ))}
-                  </Radio.Group>
-                </Form.Item>
-              </Col>
+              <Form.Item
+                name="position"
+                label="Position"
+                rules={[
+                  {
+                    required: isActive,
+                    message: 'Please select a position for the active package',
+                  },
+                ]}
+              >
+                <Radio.Group disabled={!isActive}>
+                  {[1, 2, 3, 4, 5].map(pos => (
+                    <Radio.Button key={pos} value={pos}>
+                      Position {pos}
+                    </Radio.Button>
+                  ))}
+                </Radio.Group>
+              </Form.Item>
             )}
-          </Row>
+          </>
         )}
       </Form>
     );
