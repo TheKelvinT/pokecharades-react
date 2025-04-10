@@ -555,7 +555,6 @@ const TierDrawer: React.FC<TierDrawerProps> = ({
                 type="primary"
                 onClick={handleSubmit}
                 loading={isCreating || isUpdating || loading}
-                disabled={mode === 'create' && activeCount >= maxActiveTiers}
               >
                 {mode === 'create' ? 'Create' : 'Save'}
               </Button>

@@ -519,12 +519,7 @@ const TierList: React.FC = () => {
     <div>
       <div className="flex justify-between items-center mb-4">
         <Title level={2}>Tier Management</Title>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => showDrawer('create')}
-          disabled={activeCount >= MAX_ACTIVE_TIERS}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => showDrawer('create')}>
           Add New Tier
         </Button>
       </div>

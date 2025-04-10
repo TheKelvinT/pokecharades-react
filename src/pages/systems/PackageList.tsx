@@ -1,377 +1,380 @@
-import React, { useState } from 'react';
 import {
-  Table,
-  Card,
-  Typography,
+  CheckCircleOutlined,
+  PlusOutlined,
+  EyeOutlined,
+  EditOutlined,
+  SwapOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
+import {
+  Alert,
   Button,
+  Card,
+  Col,
+  Collapse,
+  Row,
   Space,
   Tag,
-  Modal,
-  Form,
-  Input,
-  InputNumber,
-  Select,
-  Switch,
+  Typography,
   message,
-  Alert,
-  Divider,
-  Row,
-  Col,
-  Progress,
+  Modal,
+  Tooltip,
 } from 'antd';
-import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  CheckCircleOutlined,
-  InfoCircleOutlined,
-} from '@ant-design/icons';
-import { packagesList, tiersList } from '../../services/mockData';
+import React, { useState } from 'react';
+import PackageDrawer from '../../components/package/PackageDrawer';
+import PackageTable from '../../components/package/PackageTable';
+import { useTableConfig } from '../../hooks/useTableConfig';
+import { TableParams } from '../../types/common/Common';
+import DashboardLoader from '../../components/common/DashboardLoader';
+import { packagesList } from '../../services/mockData';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 const MAX_ACTIVE_PACKAGES = 5; // Maximum allowed active packages
 
+interface PackageData {
+  id: string;
+  name: string;
+  tier: string;
+  duration: number;
+  price: number;
+  discount: number;
+  isActive: boolean;
+  updatedAt: string;
+  position?: number;
+}
+
+// Helper function to calculate final price
+const calculateFinalPrice = (pkg: PackageData) => {
+  const price = pkg.price || 0;
+  const discount = pkg.discount || 0;
+  return price * (1 - discount / 100);
+};
+
 const PackageList: React.FC = () => {
-  const [data, setData] = useState(packagesList);
-  const [form] = Form.useForm();
-  const [visible, setVisible] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<PackageData | undefined>();
+  const [reorderModalVisible, setReorderModalVisible] = useState(false);
+  const [selectedPackageForReorder, setSelectedPackageForReorder] = useState<PackageData | null>(
+    null
+  );
 
-  // Count active packages
-  const activePackages = data.filter(pkg => pkg.active);
+  // Add table config state
+  const { tableParams, handleTableChange } = useTableConfig({
+    pagination: {
+      current: 1,
+      pageSize: 10,
+    },
+    sortField: 'name',
+    sortOrder: 'ascend',
+  });
+
+  // Add filter states
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+
+  // Get active packages
+  const activePackages = packagesList.filter(pkg => pkg.active);
   const activeCount = activePackages.length;
-  const packageCapacityPercentage = (activeCount / MAX_ACTIVE_PACKAGES) * 100;
 
-  const showModal = (record?: any) => {
+  const showDrawer = (mode: 'create' | 'edit' | 'view', record?: PackageData) => {
+    setDrawerMode(mode);
     setEditingId(record?.id || null);
-    form.setFieldsValue(
-      record || {
-        name: '',
-        tier: undefined,
-        duration: 1,
-        price: 0,
-        discount: 0,
-        active: activeCount < MAX_ACTIVE_PACKAGES, // Default to active if there's room
-      }
-    );
-    setVisible(true);
+    setSelectedPackage(record);
+    setDrawerOpen(true);
   };
 
-  const handleCancel = () => {
-    setVisible(false);
+  const handleDrawerClose = () => {
+    setDrawerOpen(false);
+    setEditingId(null);
+    setSelectedPackage(undefined);
   };
 
-  const handleDelete = (id: number) => {
-    Modal.confirm({
-      title: 'Are you sure you want to delete this package?',
-      content: 'This action cannot be undone.',
-      onOk() {
-        setData(data.filter(item => item.id !== id));
-        message.success('Package deleted successfully');
-      },
+  // Handler for table changes
+  const handleTableConfigChange = (
+    newTableParams: TableParams,
+    filters: {
+      search?: string;
+      status?: string;
+    }
+  ) => {
+    handleTableChange(newTableParams.pagination, newTableParams.filters || {}, {
+      field: newTableParams.sortField,
+      order: newTableParams.sortOrder,
     });
+    setSearchText(filters.search || '');
+    setStatusFilter(filters.status);
   };
 
-  const handleToggleActive = (id: number, currentStatus: boolean) => {
-    // If trying to activate and already at limit
-    if (!currentStatus && activeCount >= MAX_ACTIVE_PACKAGES) {
-      message.error(
-        `Only ${MAX_ACTIVE_PACKAGES} active packages are allowed. Please deactivate one first.`
+  const handleReorder = (pkg: PackageData, newPosition: number) => {
+    // Implement reorder logic here
+    setReorderModalVisible(false);
+    setSelectedPackageForReorder(null);
+  };
+
+  const renderActivePackages = (
+    packages: PackageData[],
+    showDrawer: (mode: 'create' | 'edit' | 'view', record?: PackageData) => void
+  ) => {
+    if (packages.length === 0) {
+      return (
+        <Alert
+          message="No Active Packages"
+          description="There are currently no active packages. Please activate at least one package."
+          type="warning"
+          showIcon
+        />
       );
-      return;
     }
 
-    setData(data.map(item => (item.id === id ? { ...item, active: !currentStatus } : item)));
-    message.success(`Package ${currentStatus ? 'deactivated' : 'activated'} successfully`);
+    // Create an array of 5 positions with empty slots
+    const positionedPackages = Array(MAX_ACTIVE_PACKAGES).fill(null);
+
+    // Place packages in their correct positions (converting from 1-based to 0-based index)
+    packages.forEach(pkg => {
+      if (pkg.position && pkg.position >= 1 && pkg.position <= MAX_ACTIVE_PACKAGES) {
+        positionedPackages[pkg.position - 1] = pkg;
+      }
+    });
+
+    return (
+      <Row gutter={[16, 16]} className="py-4">
+        {positionedPackages.map((pkg, index) => (
+          <Col xs={24} sm={24} md={8} key={pkg?.id || `empty-${index}`}>
+            {pkg ? (
+              // Render actual package card
+              <Card
+                className="h-full flex flex-col transition-all duration-300 hover:shadow-lg"
+                styles={{
+                  body: {
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                  },
+                }}
+                style={{ maxWidth: '350px', margin: '0 auto' }}
+              >
+                {/* Package Header */}
+                <div className="text-center mb-6">
+                  <Title level={3} style={{ margin: 0 }}>
+                    {pkg.name}
+                  </Title>
+                  <Tag color={pkg.isActive ? 'green' : 'red'} className="mt-2">
+                    {pkg.isActive ? 'Active' : 'Inactive'}
+                  </Tag>
+                </div>
+
+                {/* Pricing */}
+                <div className="text-center mb-6">
+                  {pkg.discount > 0 && (
+                    <Text delete type="secondary" className="text-lg">
+                      ${pkg.price.toFixed(2)}
+                    </Text>
+                  )}
+                  <div className="flex items-center justify-center">
+                    <Text strong className="text-4xl">
+                      ${calculateFinalPrice(pkg).toFixed(2)}
+                    </Text>
+                    <Text type="secondary" className="ml-2">
+                      /{pkg.duration === 1 ? 'mo' : `${pkg.duration}mo`}
+                    </Text>
+                  </div>
+                  {pkg.discount > 0 && (
+                    <Tag color="green" className="mt-2">
+                      Save {pkg.discount}%
+                    </Tag>
+                  )}
+                </div>
+
+                {/* Package Details */}
+                <div className="flex-grow mb-6">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <Text type="secondary">Tier:</Text>
+                      <Text strong>{pkg.tier}</Text>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <Text type="secondary">Duration:</Text>
+                      <Text strong>
+                        {pkg.duration} {pkg.duration === 1 ? 'month' : 'months'}
+                      </Text>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="mt-auto pt-6 border-t">
+                  <Space className="w-full justify-end">
+                    <Tooltip title="View Details">
+                      <Button
+                        type="text"
+                        icon={<EyeOutlined />}
+                        onClick={() => showDrawer('view', pkg)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => showDrawer('edit', pkg)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Reorder">
+                      <Button
+                        type="text"
+                        icon={<SwapOutlined />}
+                        onClick={() => {
+                          setSelectedPackageForReorder(pkg);
+                          setReorderModalVisible(true);
+                        }}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Deactivate">
+                      <Button
+                        type="text"
+                        danger
+                        icon={<StopOutlined />}
+                        onClick={() => {
+                          // Implement deactivate logic here
+                          message.success('Package deactivated successfully');
+                        }}
+                      />
+                    </Tooltip>
+                  </Space>
+                </div>
+              </Card>
+            ) : (
+              // Render empty placeholder card
+              <Card
+                className="h-full flex flex-col border-dashed"
+                styles={{
+                  body: {
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  },
+                }}
+                style={{ maxWidth: '350px', margin: '0 auto' }}
+              >
+                <div className="text-center text-gray-400">
+                  <div className="mb-4">
+                    <Text type="secondary" className="text-lg">
+                      Position {index + 1}
+                    </Text>
+                  </div>
+                  <Text type="secondary">Available Slot</Text>
+                </div>
+              </Card>
+            )}
+          </Col>
+        ))}
+      </Row>
+    );
   };
 
-  const handleOk = async () => {
-    try {
-      setConfirmLoading(true);
-      const values = await form.validateFields();
-
-      // Check if we're adding a new active package when we're already at the limit
-      if (values.active && !editingId && activeCount >= MAX_ACTIVE_PACKAGES) {
-        message.error(
-          `Only ${MAX_ACTIVE_PACKAGES} active packages are allowed. Please set this package as inactive.`
-        );
-        values.active = false;
-      }
-
-      // Check if we're changing an inactive package to active when we're at the limit
-      if (values.active && editingId) {
-        const currentPackage = data.find(item => item.id === editingId);
-        if (!currentPackage?.active && activeCount >= MAX_ACTIVE_PACKAGES) {
-          message.error(
-            `Only ${MAX_ACTIVE_PACKAGES} active packages are allowed. Please set this package as inactive.`
-          );
-          values.active = false;
-        }
-      }
-
-      if (editingId) {
-        // Update existing package
-        setData(data.map(item => (item.id === editingId ? { ...item, ...values } : item)));
-        message.success('Package updated successfully');
-      } else {
-        // Create new package
-        const newId = Math.max(...data.map(item => item.id), 0) + 1;
-        setData([...data, { id: newId, ...values }]);
-        message.success('Package created successfully');
-      }
-      setVisible(false);
-    } catch (error) {
-      console.error('Validation failed:', error);
-    } finally {
-      setConfirmLoading(false);
-    }
+  const getCollapseItems = () => {
+    return [
+      {
+        key: '1',
+        label: (
+          <div className="flex justify-between items-center w-full">
+            <Title level={5} style={{ margin: 0 }}>
+              Currently Active Packages ({activeCount}/{MAX_ACTIVE_PACKAGES})
+            </Title>
+          </div>
+        ),
+        children: renderActivePackages(activePackages, showDrawer),
+      },
+    ];
   };
-
-  const columns = [
-    {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'Tier',
-      dataIndex: 'tier',
-      key: 'tier',
-    },
-    {
-      title: 'Duration',
-      dataIndex: 'duration',
-      key: 'duration',
-      render: (duration: number) => `${duration} ${duration === 1 ? 'month' : 'months'}`,
-    },
-    {
-      title: 'Price',
-      dataIndex: 'price',
-      key: 'price',
-      render: (price: number) => `$${price.toFixed(2)}`,
-    },
-    {
-      title: 'Discount',
-      dataIndex: 'discount',
-      key: 'discount',
-      render: (discount: number) => (discount > 0 ? `${discount}%` : '-'),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'active',
-      key: 'active',
-      render: (active: boolean) => (
-        <Tag color={active ? 'green' : 'red'}>{active ? 'Active' : 'Inactive'}</Tag>
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_: any, record: any) => (
-        <Space size="middle">
-          <Button
-            type={record.active ? 'default' : 'primary'}
-            icon={<CheckCircleOutlined />}
-            onClick={() => handleToggleActive(record.id, record.active)}
-            disabled={!record.active && activeCount >= MAX_ACTIVE_PACKAGES}
-          >
-            {record.active ? 'Deactivate' : 'Activate'}
-          </Button>
-          <Button type="primary" icon={<EditOutlined />} onClick={() => showModal(record)}>
-            Edit
-          </Button>
-          <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>
-            Delete
-          </Button>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
         <Title level={2}>Package Management</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => showDrawer('create')}
+          disabled={activeCount >= MAX_ACTIVE_PACKAGES}
+        >
           Add New Package
         </Button>
       </div>
 
-      {/* Current Active Packages Section */}
-      <Card className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <Title level={4}>Currently Active Packages</Title>
-          <div className="flex items-center">
-            <Text className="mr-2">Active Package Capacity:</Text>
-            <Progress
-              type="circle"
-              percent={packageCapacityPercentage}
-              width={50}
-              format={() => `${activeCount}/${MAX_ACTIVE_PACKAGES}`}
-              status={activeCount >= MAX_ACTIVE_PACKAGES ? 'exception' : 'normal'}
-            />
-          </div>
-        </div>
-        <Divider />
+      <Collapse
+        items={getCollapseItems()}
+        defaultActiveKey={['1']}
+        className="mb-6"
+        style={{ background: '#fff' }}
+      />
 
-        {activePackages.length > 0 ? (
-          <Row gutter={[24, 24]}>
-            {activePackages.map(pkg => (
-              <Col xs={24} sm={12} lg={8} key={pkg.id}>
-                <Card
-                  title={pkg.name}
-                  bordered
-                  hoverable
-                  className="h-full flex flex-col"
-                  bodyStyle={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    padding: '16px',
-                  }}
-                >
-                  <div>
-                    <Text strong className="text-xl">
-                      ${pkg.price.toFixed(2)}
-                    </Text>
-
-                    <div className="mt-2">
-                      <div>
-                        <Text type="secondary">Tier:</Text> {pkg.tier}
-                      </div>
-                      <div>
-                        <Text type="secondary">Duration:</Text> {pkg.duration}{' '}
-                        {pkg.duration === 1 ? 'month' : 'months'}
-                      </div>
-                      {pkg.discount > 0 && (
-                        <div>
-                          <Text type="secondary">Discount:</Text>{' '}
-                          <Text type="success">{pkg.discount}%</Text>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end mt-auto pt-4">
-                    <Space>
-                      <Button size="small" onClick={() => showModal(pkg)}>
-                        Edit
-                      </Button>
-                      <Button
-                        size="small"
-                        danger
-                        onClick={() => handleToggleActive(pkg.id, pkg.active)}
-                      >
-                        Deactivate
-                      </Button>
-                    </Space>
-                  </div>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        ) : (
-          <Alert
-            message="No Active Packages"
-            description="There are currently no active packages. Please activate at least one package to make it available to members."
-            type="warning"
-            showIcon
-          />
-        )}
-
-        {activeCount >= MAX_ACTIVE_PACKAGES && (
-          <Alert
-            message="Maximum Package Limit Reached"
-            description={`You have reached the maximum limit of ${MAX_ACTIVE_PACKAGES} active packages. To activate a new package, please deactivate an existing one first.`}
-            type="info"
-            showIcon
-            icon={<InfoCircleOutlined />}
-            className="mt-4"
-          />
-        )}
+      <Card styles={{ body: { padding: '24px' } }}>
+        <Title level={5}>All Packages</Title>
+        <PackageTable
+          onShowDrawer={showDrawer}
+          loading={false}
+          data={packagesList}
+          total={packagesList.length}
+          tableParams={tableParams}
+          onTableChange={handleTableConfigChange}
+          filters={{
+            searchText,
+            statusFilter,
+          }}
+        />
       </Card>
 
-      {/* Package List Table */}
-      <Card>
-        <Table columns={columns} dataSource={data} rowKey="id" pagination={{ pageSize: 10 }} />
-      </Card>
+      <PackageDrawer
+        open={drawerOpen}
+        mode={drawerMode}
+        editingId={editingId}
+        packageData={selectedPackage}
+        onClose={handleDrawerClose}
+        setDrawerMode={setDrawerMode}
+        activeCount={activeCount}
+        maxActivePackages={MAX_ACTIVE_PACKAGES}
+        onSubmit={values => {
+          console.log('Form values:', values);
+          // Implement form submission logic here
+          handleDrawerClose();
+        }}
+        onDelete={id => {
+          console.log('Delete package:', id);
+          // Implement delete logic here
+          handleDrawerClose();
+        }}
+      />
 
       <Modal
-        title={editingId ? 'Edit Package' : 'Add New Package'}
-        open={visible}
-        onOk={handleOk}
-        confirmLoading={confirmLoading}
-        onCancel={handleCancel}
-        width={600}
+        title="Select Position"
+        open={reorderModalVisible}
+        onCancel={() => {
+          setReorderModalVisible(false);
+          setSelectedPackageForReorder(null);
+        }}
+        footer={null}
       >
-        <Form form={form} layout="vertical" name="package_form">
-          <Form.Item
-            name="name"
-            label="Package Name"
-            rules={[{ required: true, message: 'Please enter package name' }]}
-          >
-            <Input />
-          </Form.Item>
-
-          <Form.Item
-            name="tier"
-            label="Tier"
-            rules={[{ required: true, message: 'Please select a tier' }]}
-          >
-            <Select placeholder="Select tier">
-              {tiersList.map(tier => (
-                <Option key={tier.id} value={tier.name}>
-                  {tier.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="duration"
-            label="Duration (months)"
-            rules={[{ required: true, message: 'Please enter duration' }]}
-          >
-            <InputNumber min={1} max={60} style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="price"
-            label="Price"
-            rules={[{ required: true, message: 'Please enter price' }]}
-          >
-            <InputNumber prefix="$" min={0} precision={2} style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="discount"
-            label="Discount (%)"
-            rules={[{ required: true, message: 'Please enter discount' }]}
-          >
-            <InputNumber min={0} max={100} precision={1} style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="active"
-            label="Status"
-            valuePropName="checked"
-            help={
-              activeCount >= MAX_ACTIVE_PACKAGES
-                ? `Maximum ${MAX_ACTIVE_PACKAGES} active packages allowed`
-                : undefined
-            }
-          >
-            <Switch
-              checkedChildren="Active"
-              unCheckedChildren="Inactive"
-              disabled={!editingId && activeCount >= MAX_ACTIVE_PACKAGES}
-            />
-          </Form.Item>
-        </Form>
+        {selectedPackageForReorder && (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            {[1, 2, 3, 4, 5].map(position => (
+              <Button
+                key={position}
+                block
+                onClick={() => handleReorder(selectedPackageForReorder, position)}
+                disabled={position === selectedPackageForReorder?.position}
+              >
+                Move to Position {position}
+              </Button>
+            ))}
+          </Space>
+        )}
       </Modal>
     </div>
   );
