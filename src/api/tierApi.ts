@@ -70,6 +70,12 @@ interface ActiveTiersResponse {
   data: PricingTier[];
 }
 
+interface ReorderTiersPayload {
+  firstTierId: string;
+  secondTierId: string;
+  tierType: 'MONTHLY' | 'YEARLY';
+}
+
 export const useTiers = (params: TierQueryParams = {}) => {
   return useQuery<ApiResponse<TierResponse>>({
     queryKey: ['tiers', params],
@@ -184,6 +190,20 @@ export const useSetRecommended = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tiers'] });
+      queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
+    },
+  });
+};
+
+export const useReorderTiers = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: ReorderTiersPayload) => {
+      const response = await api.put('/admin/tiers/switch', payload);
+      return response.data;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
     },
   });

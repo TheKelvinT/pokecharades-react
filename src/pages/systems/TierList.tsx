@@ -6,6 +6,7 @@ import {
   StarFilled,
   StarOutlined,
   StopOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import {
   Alert,
@@ -20,6 +21,7 @@ import {
   Typography,
   message,
   Modal,
+  Tooltip,
 } from 'antd';
 import React, { useState } from 'react';
 import {
@@ -27,6 +29,7 @@ import {
   useTiers,
   useDeactivateTierStatus,
   useSetRecommended,
+  useReorderTiers,
 } from '../../api/tierApi';
 import TierDrawer from '../../components/tier/TierDrawer';
 import TierTable from '../../components/tier/TierTable';
@@ -59,6 +62,8 @@ const TierList: React.FC = () => {
   const [selectedTier, setSelectedTier] = useState<PricingTier | undefined>();
   const [confirmLoading, _] = useState(false);
   const [activeTab, setActiveTab] = useState<'monthly' | 'annual'>('monthly');
+  const [reorderModalVisible, setReorderModalVisible] = useState(false);
+  const [selectedTierForReorder, setSelectedTierForReorder] = useState<PricingTier | null>(null);
 
   // Add table config state
   const { tableParams, handleTableChange } = useTableConfig({
@@ -100,6 +105,7 @@ const TierList: React.FC = () => {
   const { mutate: deactivateTierStatus, isPending: isDeactivatingStatus } =
     useDeactivateTierStatus();
   const { mutate: setRecommended, isPending: isSettingRecommended } = useSetRecommended();
+  const { mutate: reorderTiers } = useReorderTiers();
 
   // Handler for table changes
   const handleTableConfigChange = (
@@ -275,48 +281,65 @@ const TierList: React.FC = () => {
                 {/* Actions */}
                 <div className="mt-auto pt-6 border-t">
                   <Space className="w-full justify-end">
-                    <Button
-                      type="text"
-                      icon={<EyeOutlined />}
-                      onClick={() => showDrawer('view', tier)}
-                      title="View Details"
-                    />
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={() => showDrawer('edit', tier)}
-                      title="Edit"
-                    />
-                    <Button
-                      type="text"
-                      icon={
-                        tier.isRecommended ? (
-                          <StarFilled style={{ color: '#faad14' }} />
-                        ) : (
-                          <StarOutlined />
-                        )
-                      }
-                      onClick={() => handleSetRecommended(tier)}
-                      disabled={isSettingRecommended}
+                    <Tooltip title="View Details">
+                      <Button
+                        type="text"
+                        icon={<EyeOutlined />}
+                        onClick={() => showDrawer('view', tier)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => showDrawer('edit', tier)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Reorder">
+                      <Button
+                        type="text"
+                        icon={<SwapOutlined />}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setSelectedTierForReorder(tier);
+                          setReorderModalVisible(true);
+                        }}
+                      />
+                    </Tooltip>
+                    <Tooltip
                       title={tier.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}
-                    />
-                    <Button
-                      type="text"
-                      danger
-                      icon={<StopOutlined />}
-                      onClick={() => {
-                        deactivateTierStatus(tier.id, {
-                          onSuccess: () => {
-                            message.success('Tier deactivated successfully');
-                          },
-                          onError: error => {
-                            message.error('Failed to deactivate tier: ' + error.message);
-                          },
-                        });
-                      }}
-                      disabled={isDeactivatingStatus}
-                      title="Deactivate"
-                    />
+                    >
+                      <Button
+                        type="text"
+                        icon={
+                          tier.isRecommended ? (
+                            <StarFilled style={{ color: '#faad14' }} />
+                          ) : (
+                            <StarOutlined />
+                          )
+                        }
+                        onClick={() => handleSetRecommended(tier)}
+                        disabled={isSettingRecommended}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Deactivate">
+                      <Button
+                        type="text"
+                        danger
+                        icon={<StopOutlined />}
+                        onClick={() => {
+                          deactivateTierStatus(tier.id, {
+                            onSuccess: () => {
+                              message.success('Tier deactivated successfully');
+                            },
+                            onError: error => {
+                              message.error('Failed to deactivate tier: ' + error.message);
+                            },
+                          });
+                        }}
+                        disabled={isDeactivatingStatus}
+                      />
+                    </Tooltip>
                   </Space>
                 </div>
               </Card>
@@ -352,6 +375,23 @@ const TierList: React.FC = () => {
     );
   };
 
+  const handleReorder = (tier: PricingTier, newPosition: number) => {
+    const currentTiers = activeTiers.filter(
+      t => t.tierType === (activeTab === 'monthly' ? 'MONTHLY' : 'YEARLY')
+    );
+    const targetTier = currentTiers.find(t => t.position === newPosition);
+
+    if (targetTier) {
+      reorderTiers({
+        firstTierId: tier.id,
+        secondTierId: targetTier.id,
+        tierType: activeTab === 'monthly' ? 'MONTHLY' : 'YEARLY',
+      });
+    }
+    setReorderModalVisible(false);
+    setSelectedTierForReorder(null);
+  };
+
   // Update getCollapseItems to pass mutation functions
   const getCollapseItems = (type: 'monthly' | 'annual') => {
     const currentTiers = activeTiers.filter(
@@ -363,10 +403,12 @@ const TierList: React.FC = () => {
       {
         key: '1',
         label: (
-          <Title level={5} style={{ margin: 0, marginRight: '24px' }}>
-            Currently Active {type === 'monthly' ? 'Monthly' : 'Annual'} Tiers ({typeActiveCount}/
-            {MAX_ACTIVE_TIERS})
-          </Title>
+          <div className="flex justify-between items-center w-full">
+            <Title level={5} style={{ margin: 0 }}>
+              Currently Active {type === 'monthly' ? 'Monthly' : 'Annual'} Tiers ({typeActiveCount}/
+              {MAX_ACTIVE_TIERS})
+            </Title>
+          </div>
         ),
         children: isLoadingActiveTiers ? (
           <DashboardLoader tip="Loading active tiers..." />
@@ -484,6 +526,31 @@ const TierList: React.FC = () => {
         activeCount={activeCount}
         maxActiveTiers={MAX_ACTIVE_TIERS}
       />
+
+      <Modal
+        title="Select Position"
+        open={reorderModalVisible}
+        onCancel={() => {
+          setReorderModalVisible(false);
+          setSelectedTierForReorder(null);
+        }}
+        footer={null}
+      >
+        {selectedTierForReorder && (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            {[1, 2, 3].map(position => (
+              <Button
+                key={position}
+                block
+                onClick={() => handleReorder(selectedTierForReorder, position)}
+                disabled={position === selectedTierForReorder.position}
+              >
+                Move to Position {position}
+              </Button>
+            ))}
+          </Space>
+        )}
+      </Modal>
     </div>
   );
 };

@@ -1,16 +1,21 @@
 import React from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import AppRouter from './AppRouter';
 import { themeConfig } from './utils/theme';
 import 'antd/dist/reset.css';
+import Home from './pages/home/Home';
 
 const App: React.FC = () => {
   return (
     <ConfigProvider theme={themeConfig}>
-      <BrowserRouter>
-        <AppRouter />
-      </BrowserRouter>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/*" element={<AppRouter />} />
+        </Routes>
+      </Router>
     </ConfigProvider>
   );
 };
