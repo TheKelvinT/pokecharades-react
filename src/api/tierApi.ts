@@ -209,6 +209,23 @@ export const useReorderTiers = () => {
   });
 };
 
+export const useDeleteTier = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await api.delete(`/admin/tier/${id}`, {
+        showSuccess: false,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tiers'] });
+      queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
+    },
+  });
+};
+
 // Example usage:
 // const { data, isLoading, error } = useTiers({
 //   tierType: 'MONTHLY',

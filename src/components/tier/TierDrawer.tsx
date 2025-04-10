@@ -1,4 +1,4 @@
-import { MinusCircleOutlined, PlusOutlined, EditOutlined } from '@ant-design/icons';
+import { MinusCircleOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import {
   Button,
   Col,
@@ -14,9 +14,10 @@ import {
   Switch,
   Tag,
   message,
+  Modal,
 } from 'antd';
 import { useEffect, useState } from 'react';
-import { useCreateTier, useUpdateTier } from '../../api/tierApi';
+import { useCreateTier, useUpdateTier, useDeleteTier } from '../../api/tierApi';
 import dayjs from 'dayjs';
 
 interface TierData {
@@ -63,6 +64,7 @@ const TierDrawer: React.FC<TierDrawerProps> = ({
   const [form] = Form.useForm();
   const { mutate: createTier, isPending: isCreating } = useCreateTier();
   const { mutate: updateTier, isPending: isUpdating } = useUpdateTier();
+  const { mutate: deleteTier, isPending: isDeleting } = useDeleteTier();
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null);
   const [currentDiscountType, setCurrentDiscountType] = useState<'PERCENT' | 'WHOLE_NUMBER'>(
     'PERCENT'
@@ -180,6 +182,36 @@ const TierDrawer: React.FC<TierDrawerProps> = ({
     } catch (error) {
       console.error('Validation failed:', error);
     }
+  };
+
+  const handleDelete = () => {
+    if (!tierData?.id) return;
+
+    if (tierData.isActive) {
+      message.error('Cannot delete an active tier. Please deactivate it first.');
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Delete Tier',
+      content: `Are you sure you want to delete the tier "${tierData.name}"? This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'No, Cancel',
+      onOk: () => {
+        if (tierData.id) {
+          deleteTier(tierData.id, {
+            onSuccess: () => {
+              message.success('Tier deleted successfully');
+              onClose();
+            },
+            onError: error => {
+              message.error('Failed to delete tier: ' + error.message);
+            },
+          });
+        }
+      },
+    });
   };
 
   const renderViewMode = () => (
@@ -502,9 +534,20 @@ const TierDrawer: React.FC<TierDrawerProps> = ({
       extra={
         <Space>
           {mode === 'view' ? (
-            <Button type="primary" icon={<EditOutlined />} onClick={() => setDrawerMode('edit')}>
-              Edit
-            </Button>
+            <>
+              <Button
+                type="primary"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDelete}
+                disabled={tierData?.isActive || isDeleting}
+              >
+                Delete
+              </Button>
+              <Button type="primary" icon={<EditOutlined />} onClick={() => setDrawerMode('edit')}>
+                Edit
+              </Button>
+            </>
           ) : (
             <>
               <Button onClick={onClose}>Cancel</Button>

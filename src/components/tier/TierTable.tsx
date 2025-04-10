@@ -1,5 +1,11 @@
-import { EditOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { Button, Input, Select, Space, Table, Tag, Tooltip } from 'antd';
+import {
+  EditOutlined,
+  EyeOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
+import { Button, Input, Select, Space, Table, Tag, Tooltip, Modal, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { FilterValue, SorterResult, TablePaginationConfig } from 'antd/es/table/interface';
 import dayjs from 'dayjs';
@@ -7,6 +13,7 @@ import { debounce } from 'lodash';
 import { useCallback } from 'react';
 import DashboardLoader from '../common/DashboardLoader';
 import { TableParams } from '../../types/common/Common';
+import { useDeleteTier } from '../../api/tierApi';
 
 interface TierTableProps {
   tierType?: 'MONTHLY' | 'YEARLY';
@@ -52,6 +59,8 @@ const TierTable: React.FC<TierTableProps> = ({
   onTableChange,
   filters,
 }) => {
+  const { mutate: deleteTier, isPending: isDeleting } = useDeleteTier();
+
   // Create a debounced search function
   const debouncedSearch = useCallback(
     debounce((value: string) => {
@@ -92,6 +101,31 @@ const TierTable: React.FC<TierTableProps> = ({
       recommended: undefined,
     });
     debouncedSearch.cancel();
+  };
+
+  const handleDelete = (record: TierData) => {
+    if (record.isActive) {
+      message.error('Cannot delete an active tier. Please deactivate it first.');
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Delete Tier',
+      content: `Are you sure you want to delete the tier "${record.name}"? This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'No, Cancel',
+      onOk: () => {
+        deleteTier(record.id, {
+          onSuccess: () => {
+            message.success('Tier deleted successfully');
+          },
+          onError: error => {
+            message.error('Failed to delete tier: ' + error.message);
+          },
+        });
+      },
+    });
   };
 
   const columns: ColumnsType<TierData> = [
@@ -176,6 +210,15 @@ const TierTable: React.FC<TierTableProps> = ({
               type="text"
               icon={<EditOutlined />}
               onClick={() => onShowDrawer?.('edit', record)}
+            />
+          </Tooltip>
+          <Tooltip title={record.isActive ? 'Cannot delete active tier' : 'Delete'} trigger="hover">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record)}
+              disabled={record.isActive || isDeleting}
             />
           </Tooltip>
         </Space>

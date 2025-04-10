@@ -152,24 +152,45 @@ const TierList: React.FC = () => {
     const handleSetRecommended = (tier: PricingTier) => {
       const existingRecommended = tiers.find(t => t.isRecommended && t.id !== tier.id);
 
-      Modal.confirm({
-        title: 'Set as Recommended Tier',
-        content: existingRecommended
-          ? `This will remove the recommended status from "${existingRecommended.name}" and set "${tier.name}" as the recommended tier. Continue?`
-          : `Set "${tier.name}" as the recommended tier?`,
-        okText: 'Yes',
-        cancelText: 'No',
-        onOk: () => {
-          setRecommended(tier.id, {
-            onSuccess: () => {
-              message.success('Recommended tier updated successfully');
-            },
-            onError: error => {
-              message.error('Failed to update recommended tier: ' + error.message);
-            },
-          });
-        },
-      });
+      if (tier.isRecommended) {
+        // If the tier is already recommended, ask to remove recommendation
+        Modal.confirm({
+          title: 'Remove Recommended Status',
+          content: `Are you sure you want to remove the recommended status from "${tier.name}"?`,
+          okText: 'Yes, Remove',
+          cancelText: 'No, Keep',
+          onOk: () => {
+            setRecommended(tier.id, {
+              onSuccess: () => {
+                message.success('Recommended status removed successfully');
+              },
+              onError: error => {
+                message.error('Failed to remove recommended status: ' + error.message);
+              },
+            });
+          },
+        });
+      } else {
+        // If setting a new recommended tier
+        Modal.confirm({
+          title: 'Set as Recommended Tier',
+          content: existingRecommended
+            ? `This will remove the recommended status from "${existingRecommended.name}" and set "${tier.name}" as the new recommended tier. Are you sure you want to proceed?`
+            : `Set "${tier.name}" as the recommended tier?`,
+          okText: 'Yes, Update',
+          cancelText: 'No, Cancel',
+          onOk: () => {
+            setRecommended(tier.id, {
+              onSuccess: () => {
+                message.success('Recommended tier updated successfully');
+              },
+              onError: error => {
+                message.error('Failed to update recommended tier: ' + error.message);
+              },
+            });
+          },
+        });
+      }
     };
 
     if (tiers.length === 0) {
