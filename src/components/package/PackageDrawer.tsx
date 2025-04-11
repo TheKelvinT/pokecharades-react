@@ -26,8 +26,8 @@ const { Text } = Typography;
 interface PackageData {
   id?: string;
   name: string;
-  price: number;
-  discount: number;
+  originalPrice: number;
+  discountAmount: number;
   discountType: 'PERCENT' | 'WHOLE_NUMBER';
   isActive: boolean;
   isRecommended: boolean;
@@ -81,8 +81,11 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
   useEffect(() => {
     if (!open) {
       form.resetFields();
+      setCurrentDiscountType('PERCENT'); // Reset to default when closing
     }
     if (open && mode !== 'create' && packageData) {
+      // Set the current discount type based on package data
+      setCurrentDiscountType(packageData.discountType);
       form.setFieldsValue({
         ...packageData,
         active: packageData.isActive,
@@ -105,7 +108,7 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
       }
 
       // Apply 10% markup
-      finalPrice = finalPrice * 1.1;
+      finalPrice = finalPrice;
       setCalculatedPrice(finalPrice);
     } else {
       setCalculatedPrice(packageData?.originalPrice ? packageData.originalPrice * 1.1 : null);
@@ -125,7 +128,7 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
       }
 
       // Apply 10% markup
-      finalPrice = finalPrice * 1.1;
+      finalPrice = finalPrice;
       form.setFieldValue('finalPrice', Number(finalPrice.toFixed(2)));
     } else {
       form.setFieldValue('finalPrice', null);
@@ -187,12 +190,12 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
           {packageData?.fullAccessDays} days
         </Descriptions.Item>
         <Descriptions.Item label="Original Price">
-          ${packageData?.price?.toFixed(2)}
+          ${packageData?.originalPrice?.toFixed(2)}
         </Descriptions.Item>
-        {packageData?.discount > 0 && (
+        {packageData?.discountAmount && packageData.discountAmount > 0 && (
           <>
             <Descriptions.Item label="Discount">
-              {packageData.discount}
+              {packageData.discountAmount}
               {packageData.discountType === 'PERCENT' ? '%' : '$'}
             </Descriptions.Item>
           </>
@@ -200,11 +203,11 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
         <Descriptions.Item label="Final Price">
           $
           {(
-            (packageData?.price || 0) *
+            (packageData?.originalPrice || 0) *
             (1 -
               ((packageData?.discountType === 'PERCENT'
-                ? packageData?.discount / 100
-                : packageData?.discount / packageData?.price) || 0)) *
+                ? packageData?.discountAmount / 100
+                : packageData?.discountAmount / packageData?.originalPrice) || 0)) *
             1.1
           ).toFixed(2)}
         </Descriptions.Item>

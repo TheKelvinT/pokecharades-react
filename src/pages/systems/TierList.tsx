@@ -58,7 +58,7 @@ const calculateFinalPrice = (tier: PricingTier) => {
   }
 
   // Apply 10% markup
-  return discountedPrice * 1.1;
+  return discountedPrice ;
 };
 
 const TierList: React.FC = () => {

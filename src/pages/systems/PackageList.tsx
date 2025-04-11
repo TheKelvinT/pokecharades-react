@@ -87,8 +87,11 @@ const PackageList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
   // Add these state variables at the top of your PackageList component
+  const [loadingAction, setLoadingAction] = useState<'reorder' | 'recommend' | 'deactivate' | null>(
+    null
+  );
   const [loadingPackageId, setLoadingPackageId] = useState<string | null>(null);
-  const [loadingAction, setLoadingAction] = useState<'reorder' | 'recommend' | 'deactivate' | null>(null);
+  const [switchingPosition, setSwitchingPosition] = useState<number | null>(null);
 
   // API Hooks
   const { data: activePackagesData, isLoading: isLoadingActive } = useActivePackages();
@@ -146,10 +149,6 @@ const PackageList: React.FC = () => {
 
   const handleReorder = (pkg: PackageData, newPosition: number) => {
     const targetPackage = activePackages.find(p => p.position === newPosition);
-    setLoadingPackageId(pkg.id);
-    setLoadingAction('reorder');
-    setSwitchingPosition(newPosition);
-
     if (targetPackage) {
       reorderPackages(
         {
@@ -161,45 +160,9 @@ const PackageList: React.FC = () => {
             message.success('Package positions updated successfully');
             setReorderModalVisible(false);
             setSelectedPackageForReorder(null);
-            // Clear loading states
-            setLoadingPackageId(null);
-            setLoadingAction(null);
-            setSwitchingPosition(null);
           },
           onError: error => {
             message.error('Failed to update package positions: ' + error.message);
-            // Clear loading states
-            setLoadingPackageId(null);
-            setLoadingAction(null);
-            setSwitchingPosition(null);
-          },
-        }
-      );
-    } else {
-      updatePackage(
-        {
-          id: pkg.id,
-          payload: {
-            ...pkg,
-            position: newPosition
-          }
-        },
-        {
-          onSuccess: () => {
-            message.success('Package position updated successfully');
-            setReorderModalVisible(false);
-            setSelectedPackageForReorder(null);
-            // Clear loading states
-            setLoadingPackageId(null);
-            setLoadingAction(null);
-            setSwitchingPosition(null);
-          },
-          onError: error => {
-            message.error('Failed to update package position: ' + error.message);
-            // Clear loading states
-            setLoadingPackageId(null);
-            setLoadingAction(null);
-            setSwitchingPosition(null);
           },
         }
       );
@@ -366,7 +329,6 @@ const PackageList: React.FC = () => {
                 </div>
               </Card>
             ) : (
-              // Empty slot - just render an empty card without text
               <Card
                 className="h-full flex flex-col border-dashed"
                 styles={{
@@ -380,7 +342,11 @@ const PackageList: React.FC = () => {
                   },
                 }}
                 style={{ maxWidth: '350px', margin: '0 auto' }}
-              />
+              >
+                <Text type="secondary" className="text-lg">
+                  Position {index + 1}
+                </Text>
+              </Card>
             )}
           </Col>
         ))}

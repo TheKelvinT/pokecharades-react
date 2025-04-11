@@ -10,7 +10,7 @@ interface PackageData {
   id: string;
   name: string;
   originalPrice: number;
-  discount: number;
+  discountAmount: number;
   discountType: 'PERCENT' | 'WHOLE_NUMBER';
   isActive: boolean;
   isRecommended: boolean;
@@ -75,10 +75,10 @@ const PackageTable: React.FC<PackageTableProps> = ({
   };
 
   const calculateFinalPrice = (record: PackageData) => {
-    if (!record.discount) return record.originalPrice;
+    if (!record.discountAmount) return record.originalPrice;
     return record.discountType === 'PERCENT'
-      ? record.originalPrice * (1 - record.discount / 100)
-      : record.originalPrice - record.discount;
+      ? record.originalPrice * (1 - record.discountAmount / 100)
+      : record.originalPrice - record.discountAmount;
   };
 
   const columns: ColumnsType<PackageData> = [
@@ -99,17 +99,17 @@ const PackageTable: React.FC<PackageTableProps> = ({
     },
     {
       title: 'Discount',
-      dataIndex: 'discount',
+      dataIndex: 'discountAmount',
       key: 'discount',
       sorter: true,
       width: '12%',
       render: (_: any, record: PackageData) =>
-        record.discount > 0 ? (
-          <Tag color="green">
+        record.discountAmount > 0 ? (
+          <span>
             {record.discountType === 'PERCENT'
-              ? `${record.discount}%`
-              : `$${record.discount.toFixed(2)}`}
-          </Tag>
+              ? `${record.discountAmount}%`
+              : `$${record.discountAmount.toFixed(2)}`}
+          </span>
         ) : (
           '-'
         ),
@@ -123,8 +123,8 @@ const PackageTable: React.FC<PackageTableProps> = ({
       render: (_: any, record: PackageData) => {
         const finalPrice =
           record.discountType === 'PERCENT'
-            ? record.originalPrice * (1 - record.discount / 100) * 1.1
-            : (record.originalPrice - record.discount) * 1.1;
+            ? record.originalPrice * (1 - record.discountAmount / 100) * 1.1
+            : (record.originalPrice - record.discountAmount) * 1.1;
         return `$${finalPrice.toFixed(2)}`;
       },
     },
