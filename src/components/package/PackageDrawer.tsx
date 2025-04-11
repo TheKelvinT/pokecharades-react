@@ -20,7 +20,6 @@ import {
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { tiersList } from '../../services/mockData';
-import { useActivePackages } from '../../api/packageApi';
 
 const { Text } = Typography;
 
@@ -78,9 +77,6 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
   const discountAmount = Form.useWatch('discountAmount', form);
   const discountType = Form.useWatch('discountType', form);
 
-  // Inside the PackageDrawer component, add this hook
-  const { data: activePackagesData } = useActivePackages();
-
   // Effect for form reset and initial values
   useEffect(() => {
     if (!open) {
@@ -108,9 +104,11 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
         finalPrice = price - discount;
       }
 
+      // Apply 10% markup
+      finalPrice = finalPrice * 1.1;
       setCalculatedPrice(finalPrice);
     } else {
-      setCalculatedPrice(packageData?.originalPrice || null);
+      setCalculatedPrice(packageData?.originalPrice ? packageData.originalPrice * 1.1 : null);
     }
   }, [packageData]);
 
@@ -126,6 +124,8 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
         }
       }
 
+      // Apply 10% markup
+      finalPrice = finalPrice * 1.1;
       form.setFieldValue('finalPrice', Number(finalPrice.toFixed(2)));
     } else {
       form.setFieldValue('finalPrice', null);
@@ -176,44 +176,6 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
         }
       },
     });
-  };
-
-  const handleRecommendedChange = (checked: boolean) => {
-    if (checked) {
-      const existingRecommended = activePackagesData?.data?.data.find(
-        p => p.isRecommended && p.id !== packageData?.id
-      );
-
-      if (existingRecommended) {
-        Modal.confirm({
-          title: 'Change Recommended Package',
-          content: `This will remove the recommended status from "${existingRecommended.name}" and set "${packageData?.name}" as the new recommended package. Are you sure you want to proceed?`,
-          okText: 'Yes, Update',
-          cancelText: 'No, Cancel',
-          onOk: () => {
-            form.setFieldValue('isRecommended', true);
-          },
-          onCancel: () => {
-            form.setFieldValue('isRecommended', false);
-          },
-        });
-      } else {
-        form.setFieldValue('isRecommended', true);
-      }
-    } else {
-      Modal.confirm({
-        title: 'Remove Recommended Status',
-        content: `Are you sure you want to remove the recommended status from "${packageData?.name}"?`,
-        okText: 'Yes, Remove',
-        cancelText: 'No, Keep',
-        onOk: () => {
-          form.setFieldValue('isRecommended', false);
-        },
-        onCancel: () => {
-          form.setFieldValue('isRecommended', true);
-        },
-      });
-    }
   };
 
   const renderViewMode = () => (
@@ -430,11 +392,7 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
                     valuePropName="checked"
                     tooltip="Mark this package as recommended to highlight it to users"
                   >
-                    <Switch
-                      checkedChildren="Yes"
-                      unCheckedChildren="No"
-                      onChange={handleRecommendedChange}
-                    />
+                    <Switch checkedChildren="Yes" unCheckedChildren="No" />
                   </Form.Item>
                 </Col>
               )}

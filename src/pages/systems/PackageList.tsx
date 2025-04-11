@@ -4,8 +4,6 @@ import {
   PlusOutlined,
   StopOutlined,
   SwapOutlined,
-  StarFilled,
-  StarOutlined,
 } from '@ant-design/icons';
 import {
   Alert,
@@ -30,7 +28,6 @@ import {
   usePackages,
   useReorderPackages,
   useUpdatePackage,
-  useSetRecommended,
 } from '../../api/packageApi';
 import DashboardLoader from '../../components/common/DashboardLoader';
 import PackageDrawer from '../../components/package/PackageDrawer';
@@ -62,11 +59,7 @@ interface PackageData {
 const calculateFinalPrice = (pkg: PackageData) => {
   const price = pkg.originalPrice || 0;
   const discount = pkg.discountAmount || 0;
-
-  if (pkg.discountType === 'PERCENT') {
-    return price * (1 - discount / 100);
-  }
-  return price - discount;
+  return price * (1 - discount / 100);
 };
 
 const PackageList: React.FC = () => {
@@ -93,9 +86,9 @@ const PackageList: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
-  // Add these new state variables at the top of the component
-  const [switchingPosition, setSwitchingPosition] = useState<number | null>(null);
-  const [recommendingPackageId, setRecommendingPackageId] = useState<string | null>(null);
+  // Add these state variables at the top of your PackageList component
+  const [loadingPackageId, setLoadingPackageId] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState<'reorder' | 'recommend' | 'deactivate' | null>(null);
 
   // API Hooks
   const { data: activePackagesData, isLoading: isLoadingActive } = useActivePackages();
@@ -117,7 +110,6 @@ const PackageList: React.FC = () => {
   const { mutate: deletePackage, isPending: isDeleting } = useDeletePackage();
   const { mutate: deactivatePackage } = useDeactivatePackageStatus();
   const { mutate: reorderPackages } = useReorderPackages();
-  const { mutate: setRecommended, isPending: isSettingRecommended } = useSetRecommended();
 
   // Get active packages from API response
   const activePackages = activePackagesData?.data?.data ?? [];
@@ -154,8 +146,11 @@ const PackageList: React.FC = () => {
 
   const handleReorder = (pkg: PackageData, newPosition: number) => {
     const targetPackage = activePackages.find(p => p.position === newPosition);
+    setLoadingPackageId(pkg.id);
+    setLoadingAction('reorder');
+    setSwitchingPosition(newPosition);
+
     if (targetPackage) {
-      setSwitchingPosition(newPosition); // Set loading state
       reorderPackages(
         {
           firstPackageId: pkg.id,
@@ -166,11 +161,45 @@ const PackageList: React.FC = () => {
             message.success('Package positions updated successfully');
             setReorderModalVisible(false);
             setSelectedPackageForReorder(null);
-            setSwitchingPosition(null); // Clear loading state
+            // Clear loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
+            setSwitchingPosition(null);
           },
           onError: error => {
             message.error('Failed to update package positions: ' + error.message);
-            setSwitchingPosition(null); // Clear loading state
+            // Clear loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
+            setSwitchingPosition(null);
+          },
+        }
+      );
+    } else {
+      updatePackage(
+        {
+          id: pkg.id,
+          payload: {
+            ...pkg,
+            position: newPosition
+          }
+        },
+        {
+          onSuccess: () => {
+            message.success('Package position updated successfully');
+            setReorderModalVisible(false);
+            setSelectedPackageForReorder(null);
+            // Clear loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
+            setSwitchingPosition(null);
+          },
+          onError: error => {
+            message.error('Failed to update package position: ' + error.message);
+            // Clear loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
+            setSwitchingPosition(null);
           },
         }
       );
@@ -204,73 +233,14 @@ const PackageList: React.FC = () => {
     }
   };
 
-  const handleSetRecommended = (pkg: PackageData) => {
-    const existingRecommended = activePackages.find(p => p.isRecommended && p.id !== pkg.id);
-
-    if (pkg.isRecommended) {
-      Modal.confirm({
-        title: 'Remove Recommended Status',
-        content: `Are you sure you want to remove the recommended status from "${pkg.name}"?`,
-        okText: 'Yes, Remove',
-        cancelText: 'No, Keep',
-        onOk: () => {
-          setRecommendingPackageId(pkg.id); // Set loading state
-          setRecommended(pkg.id, {
-            onSuccess: () => {
-              message.success('Recommended status removed successfully');
-              setRecommendingPackageId(null); // Clear loading state
-            },
-            onError: error => {
-              message.error('Failed to remove recommended status: ' + error.message);
-              setRecommendingPackageId(null); // Clear loading state
-            },
-          });
-        },
-      });
-    } else {
-      Modal.confirm({
-        title: 'Set as Recommended Package',
-        content: existingRecommended
-          ? `This will remove the recommended status from "${existingRecommended.name}" and set "${pkg.name}" as the new recommended package. Are you sure you want to proceed?`
-          : `Set "${pkg.name}" as the recommended package?`,
-        okText: 'Yes, Update',
-        cancelText: 'No, Cancel',
-        onOk: () => {
-          setRecommendingPackageId(pkg.id); // Set loading state
-          setRecommended(pkg.id, {
-            onSuccess: () => {
-              message.success('Recommended package updated successfully');
-              setRecommendingPackageId(null); // Clear loading state
-            },
-            onError: error => {
-              message.error('Failed to update recommended package: ' + error.message);
-              setRecommendingPackageId(null); // Clear loading state
-            },
-          });
-        },
-      });
-    }
-  };
-
   const renderActivePackages = (
     packages: PackageData[],
     showDrawer: (mode: 'create' | 'edit' | 'view', record?: PackageData) => void
   ) => {
-    if (packages.length === 0) {
-      return (
-        <Alert
-          message="No Active Packages"
-          description="There are currently no active packages. Please activate at least one package."
-          type="warning"
-          showIcon
-        />
-      );
-    }
-
     // Create an array of 5 positions with empty slots
     const positionedPackages = Array(MAX_ACTIVE_PACKAGES).fill(null);
 
-    // Place packages in their correct positions (converting from 1-based to 0-based index)
+    // Place packages in their correct positions
     packages.forEach(pkg => {
       if (pkg.position && pkg.position >= 1 && pkg.position <= MAX_ACTIVE_PACKAGES) {
         positionedPackages[pkg.position - 1] = pkg;
@@ -375,26 +345,10 @@ const PackageList: React.FC = () => {
                         }}
                       />
                     </Tooltip>
-                    <Tooltip
-                      title={pkg.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}
-                    >
-                      <Button
-                        type="text"
-                        icon={
-                          pkg.isRecommended ? (
-                            <StarFilled style={{ color: '#faad14' }} />
-                          ) : (
-                            <StarOutlined />
-                          )
-                        }
-                        onClick={() => handleSetRecommended(pkg)}
-                        loading={recommendingPackageId === pkg.id}
-                        disabled={isSettingRecommended && recommendingPackageId !== pkg.id}
-                      />
-                    </Tooltip>
                     <Tooltip title="Deactivate">
                       <Button
                         type="text"
+                        danger
                         icon={<StopOutlined />}
                         onClick={() => {
                           deactivatePackage(pkg.id, {
@@ -412,7 +366,7 @@ const PackageList: React.FC = () => {
                 </div>
               </Card>
             ) : (
-              // Render empty placeholder card
+              // Empty slot - just render an empty card without text
               <Card
                 className="h-full flex flex-col border-dashed"
                 styles={{
@@ -426,16 +380,7 @@ const PackageList: React.FC = () => {
                   },
                 }}
                 style={{ maxWidth: '350px', margin: '0 auto' }}
-              >
-                <div className="text-center text-gray-400">
-                  <div className="mb-4">
-                    <Text type="secondary" className="text-lg">
-                      Position {index + 1}
-                    </Text>
-                  </div>
-                  <Text type="secondary">Available Slot</Text>
-                </div>
-              </Card>
+              />
             )}
           </Col>
         ))}
@@ -530,28 +475,52 @@ const PackageList: React.FC = () => {
       />
 
       <Modal
-        title="Select Position"
+        title="Reorder Position"
         open={reorderModalVisible}
         onCancel={() => {
-          setReorderModalVisible(false);
-          setSelectedPackageForReorder(null);
+          if (!loadingAction) {
+            setReorderModalVisible(false);
+            setSelectedPackageForReorder(null);
+          }
         }}
         footer={null}
+        closable={!loadingAction}
+        maskClosable={!loadingAction}
       >
         {selectedPackageForReorder && (
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {[1, 2, 3, 4, 5].map(position => (
-              <Button
-                key={position}
-                block
-                onClick={() => handleReorder(selectedPackageForReorder, position)}
-                disabled={position === selectedPackageForReorder?.position}
-                loading={switchingPosition === position}
-              >
-                Move to Position {position}
-              </Button>
-            ))}
-          </Space>
+          <div>
+            <div className="mb-4">
+              <Text>
+                Moving: <strong>{selectedPackageForReorder.name}</strong>
+              </Text>
+            </div>
+
+            <div className="space-y-4">
+              {Array(MAX_ACTIVE_PACKAGES)
+                .fill(null)
+                .map((_, index) => {
+                  const position = index + 1;
+                  const isLoading =
+                    switchingPosition === position &&
+                    loadingPackageId === selectedPackageForReorder.id;
+
+                  return (
+                    <Button
+                      key={position}
+                      block
+                      onClick={() => handleReorder(selectedPackageForReorder, position)}
+                      disabled={
+                        position === selectedPackageForReorder.position ||
+                        loadingAction === 'reorder'
+                      }
+                      loading={isLoading}
+                    >
+                      Position {position}
+                    </Button>
+                  );
+                })}
+            </div>
+          </div>
         )}
       </Modal>
     </div>

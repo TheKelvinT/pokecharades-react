@@ -137,20 +137,13 @@ export const useUpdateTier = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: UpdateTierPayload }) => {
-      const response = await api.put(`/admin/tier/${id}`, payload, {
+    mutationFn: ({ id, payload }: { id: string; payload: any }) =>
+      api.put(`/admin/tier/${id}`, payload, {
         showSuccess: false,
-        suppressError: true,
-      });
-      return response.data;
-    },
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ['tiers'],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['activeTiers'],
-      });
+      queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
+      queryClient.invalidateQueries({ queryKey: ['tiers'] });
     },
   });
 };
@@ -202,18 +195,14 @@ export const useReorderTiers = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: {
-      firstTierId: string;
-      secondTierId: string;
-      tierType: 'MONTHLY' | 'YEARLY';
-    }) =>
-      api.put('/admin/tiers/switch', data, {
+    mutationFn: async (payload: ReorderTiersPayload) => {
+      const response = await api.put('/admin/tiers/switch', payload, {
         showSuccess: false,
-      }),
+      });
+      return response.data;
+    },
     onSuccess: () => {
-      // Invalidate both active tiers and all tiers queries
       queryClient.invalidateQueries({ queryKey: ['activeTiers'] });
-      queryClient.invalidateQueries({ queryKey: ['tiers'] });
     },
   });
 };

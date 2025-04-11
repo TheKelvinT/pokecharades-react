@@ -30,6 +30,7 @@ import {
   useDeactivateTierStatus,
   useSetRecommended,
   useReorderTiers,
+  useUpdateTier,
 } from '../../api/tierApi';
 import TierDrawer from '../../components/tier/TierDrawer';
 import TierTable from '../../components/tier/TierTable';
@@ -48,11 +49,16 @@ const MAX_ACTIVE_TIERS = 3; // Maximum allowed active tiers per type (monthly/an
 const calculateFinalPrice = (tier: PricingTier) => {
   const price = tier.originalPrice || 0;
   const discount = tier.discountAmount || 0;
-  
+  let discountedPrice;
+
   if (tier.discountType === 'PERCENT') {
-    return price * (1 - discount / 100);
+    discountedPrice = price * (1 - discount / 100);
+  } else {
+    discountedPrice = price - discount;
   }
-  return price - discount;
+
+  // Apply 10% markup
+  return discountedPrice * 1.1;
 };
 
 const TierList: React.FC = () => {
@@ -65,7 +71,10 @@ const TierList: React.FC = () => {
   const [reorderModalVisible, setReorderModalVisible] = useState(false);
   const [selectedTierForReorder, setSelectedTierForReorder] = useState<PricingTier | null>(null);
   const [switchingPosition, setSwitchingPosition] = useState<number | null>(null);
-  const [recommendingTierId, setRecommendingTierId] = useState<string | null>(null);
+  const [loadingPackageId, setLoadingPackageId] = useState<string | null>(null);
+  const [loadingAction, setLoadingAction] = useState<'reorder' | 'recommend' | 'deactivate' | null>(
+    null
+  );
 
   // Add table config state
   const { tableParams, handleTableChange } = useTableConfig({
@@ -108,6 +117,7 @@ const TierList: React.FC = () => {
     useDeactivateTierStatus();
   const { mutate: setRecommended, isPending: isSettingRecommended } = useSetRecommended();
   const { mutate: reorderTiers } = useReorderTiers();
+  const { mutate: updateTier } = useUpdateTier();
 
   // Handler for table changes
   const handleTableConfigChange = (
@@ -155,26 +165,25 @@ const TierList: React.FC = () => {
       const existingRecommended = tiers.find(t => t.isRecommended && t.id !== tier.id);
 
       if (tier.isRecommended) {
+        // If the tier is already recommended, ask to remove recommendation
         Modal.confirm({
           title: 'Remove Recommended Status',
           content: `Are you sure you want to remove the recommended status from "${tier.name}"?`,
           okText: 'Yes, Remove',
           cancelText: 'No, Keep',
           onOk: () => {
-            setRecommendingTierId(tier.id);
             setRecommended(tier.id, {
               onSuccess: () => {
                 message.success('Recommended status removed successfully');
-                setRecommendingTierId(null);
               },
               onError: error => {
                 message.error('Failed to remove recommended status: ' + error.message);
-                setRecommendingTierId(null);
               },
             });
           },
         });
       } else {
+        // If setting a new recommended tier
         Modal.confirm({
           title: 'Set as Recommended Tier',
           content: existingRecommended
@@ -183,15 +192,12 @@ const TierList: React.FC = () => {
           okText: 'Yes, Update',
           cancelText: 'No, Cancel',
           onOk: () => {
-            setRecommendingTierId(tier.id);
             setRecommended(tier.id, {
               onSuccess: () => {
                 message.success('Recommended tier updated successfully');
-                setRecommendingTierId(null);
               },
               onError: error => {
                 message.error('Failed to update recommended tier: ' + error.message);
-                setRecommendingTierId(null);
               },
             });
           },
@@ -333,14 +339,17 @@ const TierList: React.FC = () => {
                       <Button
                         type="text"
                         icon={<SwapOutlined />}
-                        onClick={e => {
-                          e.stopPropagation();
+                        onClick={() => {
                           setSelectedTierForReorder(tier);
                           setReorderModalVisible(true);
                         }}
+                        loading={loadingAction === 'reorder' && loadingPackageId === tier.id}
+                        disabled={loadingAction === 'reorder' && loadingPackageId !== tier.id}
                       />
                     </Tooltip>
-                    <Tooltip title={tier.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}>
+                    <Tooltip
+                      title={tier.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}
+                    >
                       <Button
                         type="text"
                         icon={
@@ -351,8 +360,7 @@ const TierList: React.FC = () => {
                           )
                         }
                         onClick={() => handleSetRecommended(tier)}
-                        loading={recommendingTierId === tier.id}
-                        disabled={isSettingRecommended && recommendingTierId !== tier.id}
+                        disabled={isSettingRecommended}
                       />
                     </Tooltip>
                     <Tooltip title="Deactivate">
@@ -412,10 +420,13 @@ const TierList: React.FC = () => {
     const currentTiers = activeTiers.filter(
       t => t.tierType === (activeTab === 'monthly' ? 'MONTHLY' : 'YEARLY')
     );
+
     const targetTier = currentTiers.find(t => t.position === newPosition);
+    setLoadingPackageId(tier.id);
+    setLoadingAction('reorder');
+    setSwitchingPosition(newPosition);
 
     if (targetTier) {
-      setSwitchingPosition(newPosition);
       reorderTiers(
         {
           firstTierId: tier.id,
@@ -424,13 +435,47 @@ const TierList: React.FC = () => {
         },
         {
           onSuccess: () => {
-            message.success('Tier positions updated successfully');
+            message.success('Package positions updated successfully');
             setReorderModalVisible(false);
             setSelectedTierForReorder(null);
+            // Clear all loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
             setSwitchingPosition(null);
           },
-          onError: (error) => {
-            message.error('Failed to update tier positions: ' + error.message);
+          onError: error => {
+            message.error('Failed to update package positions: ' + error.message);
+            // Clear all loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
+            setSwitchingPosition(null);
+          },
+        }
+      );
+    } else {
+      updateTier(
+        {
+          id: tier.id,
+          payload: {
+            ...tier,
+            position: newPosition,
+          },
+        },
+        {
+          onSuccess: () => {
+            message.success('Package position updated successfully');
+            setReorderModalVisible(false);
+            setSelectedTierForReorder(null);
+            // Clear all loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
+            setSwitchingPosition(null);
+          },
+          onError: error => {
+            message.error('Failed to update package position: ' + error.message);
+            // Clear all loading states
+            setLoadingPackageId(null);
+            setLoadingAction(null);
             setSwitchingPosition(null);
           },
         }
@@ -569,28 +614,66 @@ const TierList: React.FC = () => {
       />
 
       <Modal
-        title="Select Position"
+        title="Reorder Position"
         open={reorderModalVisible}
         onCancel={() => {
-          setReorderModalVisible(false);
-          setSelectedTierForReorder(null);
+          if (!loadingAction) {
+            // Prevent closing while loading
+            setReorderModalVisible(false);
+            setSelectedTierForReorder(null);
+          }
         }}
         footer={null}
+        closable={!loadingAction}
+        maskClosable={!loadingAction}
       >
         {selectedTierForReorder && (
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {[1, 2, 3].map(position => (
-              <Button
-                key={position}
-                block
-                onClick={() => handleReorder(selectedTierForReorder, position)}
-                disabled={position === selectedTierForReorder.position}
-                loading={switchingPosition === position}
-              >
-                Move to Position {position}
-              </Button>
-            ))}
-          </Space>
+          <div>
+            <div className="mb-4">
+              <Text>
+                Moving: <strong>{selectedTierForReorder.name}</strong> (Current Position:{' '}
+                {selectedTierForReorder.position})
+              </Text>
+            </div>
+
+            <div className="space-y-4">
+              {Array(MAX_ACTIVE_TIERS)
+                .fill(null)
+                .map((_, index) => {
+                  const position = index + 1;
+                  const tierInPosition = activeTiers.find(t => t.position === position);
+
+                  const isLoading =
+                    switchingPosition === position &&
+                    loadingPackageId === selectedTierForReorder.id;
+
+                  return (
+                    <Button
+                      key={position}
+                      block
+                      type={tierInPosition ? 'default' : 'dashed'}
+                      onClick={() => handleReorder(selectedTierForReorder, position)}
+                      disabled={
+                        position === selectedTierForReorder.position || loadingAction === 'reorder'
+                      }
+                      loading={isLoading}
+                    >
+                      <div className={isLoading ? 'opacity-50' : ''}>
+                        {tierInPosition ? (
+                          <>
+                            <div>Position {position}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div>Position {position}</div>
+                          </>
+                        )}
+                      </div>
+                    </Button>
+                  );
+                })}
+            </div>
+          </div>
         )}
       </Modal>
     </div>
