@@ -1,10 +1,11 @@
 import {
-  CheckCircleOutlined,
-  PlusOutlined,
-  EyeOutlined,
   EditOutlined,
-  SwapOutlined,
+  EyeOutlined,
+  PlusOutlined,
   StopOutlined,
+  SwapOutlined,
+  StarFilled,
+  StarOutlined,
 } from '@ant-design/icons';
 import {
   Alert,
@@ -12,21 +13,30 @@ import {
   Card,
   Col,
   Collapse,
+  message,
+  Modal,
   Row,
   Space,
   Tag,
-  Typography,
-  message,
-  Modal,
   Tooltip,
+  Typography,
 } from 'antd';
 import React, { useState } from 'react';
+import {
+  useActivePackages,
+  useCreatePackage,
+  useDeactivatePackageStatus,
+  useDeletePackage,
+  usePackages,
+  useReorderPackages,
+  useUpdatePackage,
+  useSetRecommended,
+} from '../../api/packageApi';
+import DashboardLoader from '../../components/common/DashboardLoader';
 import PackageDrawer from '../../components/package/PackageDrawer';
 import PackageTable from '../../components/package/PackageTable';
 import { useTableConfig } from '../../hooks/useTableConfig';
 import { TableParams } from '../../types/common/Common';
-import DashboardLoader from '../../components/common/DashboardLoader';
-import { packagesList } from '../../services/mockData';
 
 const { Title, Text } = Typography;
 
@@ -35,20 +45,28 @@ const MAX_ACTIVE_PACKAGES = 5; // Maximum allowed active packages
 interface PackageData {
   id: string;
   name: string;
-  tier: string;
-  duration: number;
-  price: number;
-  discount: number;
+  originalPrice: number;
+  discountAmount: number;
   isActive: boolean;
-  updatedAt: string;
+  giveawayEntries: number;
   position?: number;
+  summary?: string;
+  createdAt: string;
+  updatedAt: string;
+  isRecommended: boolean;
+  fullAccessDays: number;
+  discountType: string;
 }
 
 // Helper function to calculate final price
 const calculateFinalPrice = (pkg: PackageData) => {
-  const price = pkg.price || 0;
-  const discount = pkg.discount || 0;
-  return price * (1 - discount / 100);
+  const price = pkg.originalPrice || 0;
+  const discount = pkg.discountAmount || 0;
+
+  if (pkg.discountType === 'PERCENT') {
+    return price * (1 - discount / 100);
+  }
+  return price - discount;
 };
 
 const PackageList: React.FC = () => {
@@ -75,8 +93,34 @@ const PackageList: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
 
-  // Get active packages
-  const activePackages = packagesList.filter(pkg => pkg.active);
+  // Add these new state variables at the top of the component
+  const [switchingPosition, setSwitchingPosition] = useState<number | null>(null);
+  const [recommendingPackageId, setRecommendingPackageId] = useState<string | null>(null);
+
+  // API Hooks
+  const { data: activePackagesData, isLoading: isLoadingActive } = useActivePackages();
+  const {
+    data: apiData,
+    isLoading: isLoadingTable,
+    error,
+  } = usePackages({
+    take: tableParams.pagination.pageSize,
+    skip: ((tableParams.pagination.current || 1) - 1) * (tableParams.pagination.pageSize || 10),
+    sortBy: tableParams.sortField || 'name',
+    order: (tableParams.sortOrder || 'ascend') === 'ascend' ? 'asc' : 'desc',
+    search: searchText,
+    isActive: statusFilter ? statusFilter === 'true' : undefined,
+  });
+
+  const { mutate: createPackage, isPending: isCreating } = useCreatePackage();
+  const { mutate: updatePackage, isPending: isUpdating } = useUpdatePackage();
+  const { mutate: deletePackage, isPending: isDeleting } = useDeletePackage();
+  const { mutate: deactivatePackage } = useDeactivatePackageStatus();
+  const { mutate: reorderPackages } = useReorderPackages();
+  const { mutate: setRecommended, isPending: isSettingRecommended } = useSetRecommended();
+
+  // Get active packages from API response
+  const activePackages = activePackagesData?.data?.data ?? [];
   const activeCount = activePackages.length;
 
   const showDrawer = (mode: 'create' | 'edit' | 'view', record?: PackageData) => {
@@ -109,9 +153,103 @@ const PackageList: React.FC = () => {
   };
 
   const handleReorder = (pkg: PackageData, newPosition: number) => {
-    // Implement reorder logic here
-    setReorderModalVisible(false);
-    setSelectedPackageForReorder(null);
+    const targetPackage = activePackages.find(p => p.position === newPosition);
+    if (targetPackage) {
+      setSwitchingPosition(newPosition); // Set loading state
+      reorderPackages(
+        {
+          firstPackageId: pkg.id,
+          secondPackageId: targetPackage.id,
+        },
+        {
+          onSuccess: () => {
+            message.success('Package positions updated successfully');
+            setReorderModalVisible(false);
+            setSelectedPackageForReorder(null);
+            setSwitchingPosition(null); // Clear loading state
+          },
+          onError: error => {
+            message.error('Failed to update package positions: ' + error.message);
+            setSwitchingPosition(null); // Clear loading state
+          },
+        }
+      );
+    }
+  };
+
+  const handleSubmit = (values: any) => {
+    if (drawerMode === 'create') {
+      createPackage(values, {
+        onSuccess: () => {
+          message.success('Package created successfully');
+          handleDrawerClose();
+        },
+        onError: error => {
+          message.error('Failed to create package: ' + error.message);
+        },
+      });
+    } else if (drawerMode === 'edit' && editingId) {
+      updatePackage(
+        { id: editingId, payload: values },
+        {
+          onSuccess: () => {
+            message.success('Package updated successfully');
+            handleDrawerClose();
+          },
+          onError: error => {
+            message.error('Failed to update package: ' + error.message);
+          },
+        }
+      );
+    }
+  };
+
+  const handleSetRecommended = (pkg: PackageData) => {
+    const existingRecommended = activePackages.find(p => p.isRecommended && p.id !== pkg.id);
+
+    if (pkg.isRecommended) {
+      Modal.confirm({
+        title: 'Remove Recommended Status',
+        content: `Are you sure you want to remove the recommended status from "${pkg.name}"?`,
+        okText: 'Yes, Remove',
+        cancelText: 'No, Keep',
+        onOk: () => {
+          setRecommendingPackageId(pkg.id); // Set loading state
+          setRecommended(pkg.id, {
+            onSuccess: () => {
+              message.success('Recommended status removed successfully');
+              setRecommendingPackageId(null); // Clear loading state
+            },
+            onError: error => {
+              message.error('Failed to remove recommended status: ' + error.message);
+              setRecommendingPackageId(null); // Clear loading state
+            },
+          });
+        },
+      });
+    } else {
+      Modal.confirm({
+        title: 'Set as Recommended Package',
+        content: existingRecommended
+          ? `This will remove the recommended status from "${existingRecommended.name}" and set "${pkg.name}" as the new recommended package. Are you sure you want to proceed?`
+          : `Set "${pkg.name}" as the recommended package?`,
+        okText: 'Yes, Update',
+        cancelText: 'No, Cancel',
+        onOk: () => {
+          setRecommendingPackageId(pkg.id); // Set loading state
+          setRecommended(pkg.id, {
+            onSuccess: () => {
+              message.success('Recommended package updated successfully');
+              setRecommendingPackageId(null); // Clear loading state
+            },
+            onError: error => {
+              message.error('Failed to update recommended package: ' + error.message);
+              setRecommendingPackageId(null); // Clear loading state
+            },
+          });
+        },
+      });
+    }
   };
 
   const renderActivePackages = (
@@ -146,7 +284,9 @@ const PackageList: React.FC = () => {
             {pkg ? (
               // Render actual package card
               <Card
-                className="h-full flex flex-col transition-all duration-300 hover:shadow-lg"
+                className={`h-full flex flex-col transition-all duration-300 hover:shadow-lg ${
+                  pkg.isRecommended ? 'border-2 border-blue-500' : ''
+                }`}
                 styles={{
                   body: {
                     padding: '24px',
@@ -157,50 +297,53 @@ const PackageList: React.FC = () => {
                 }}
                 style={{ maxWidth: '350px', margin: '0 auto' }}
               >
+                {pkg.isRecommended && (
+                  <div className="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl text-sm">
+                    Recommended
+                  </div>
+                )}
+
                 {/* Package Header */}
                 <div className="text-center mb-6">
                   <Title level={3} style={{ margin: 0 }}>
                     {pkg.name}
                   </Title>
-                  <Tag color={pkg.isActive ? 'green' : 'red'} className="mt-2">
-                    {pkg.isActive ? 'Active' : 'Inactive'}
-                  </Tag>
                 </div>
 
                 {/* Pricing */}
                 <div className="text-center mb-6">
-                  {pkg.discount > 0 && (
-                    <Text delete type="secondary" className="text-lg">
-                      ${pkg.price.toFixed(2)}
-                    </Text>
+                  {pkg.discountAmount > 0 && (
+                    <div className="mb-2">
+                      <Text delete type="secondary" className="text-lg">
+                        ${pkg.originalPrice.toFixed(2)}
+                      </Text>
+                      <Tag color="green" className="ml-2">
+                        {pkg.discountType === 'PERCENT'
+                          ? `${pkg.discountAmount}% OFF`
+                          : `$${pkg.discountAmount.toFixed(2)} OFF`}
+                      </Tag>
+                    </div>
                   )}
                   <div className="flex items-center justify-center">
                     <Text strong className="text-4xl">
                       ${calculateFinalPrice(pkg).toFixed(2)}
                     </Text>
-                    <Text type="secondary" className="ml-2">
-                      /{pkg.duration === 1 ? 'mo' : `${pkg.duration}mo`}
-                    </Text>
                   </div>
-                  {pkg.discount > 0 && (
-                    <Tag color="green" className="mt-2">
-                      Save {pkg.discount}%
-                    </Tag>
-                  )}
+                  <Text type="secondary" className="text-sm mt-2 block">
+                    {pkg.summary}
+                  </Text>
                 </div>
 
                 {/* Package Details */}
                 <div className="flex-grow mb-6">
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <Text type="secondary">Tier:</Text>
-                      <Text strong>{pkg.tier}</Text>
+                      <Text type="secondary">Full Access:</Text>
+                      <Text strong>{pkg.fullAccessDays} days</Text>
                     </div>
                     <div className="flex justify-between items-center">
-                      <Text type="secondary">Duration:</Text>
-                      <Text strong>
-                        {pkg.duration} {pkg.duration === 1 ? 'month' : 'months'}
-                      </Text>
+                      <Text type="secondary">Giveaway Entries:</Text>
+                      <Text strong>{pkg.giveawayEntries.toLocaleString()}</Text>
                     </div>
                   </div>
                 </div>
@@ -232,14 +375,36 @@ const PackageList: React.FC = () => {
                         }}
                       />
                     </Tooltip>
+                    <Tooltip
+                      title={pkg.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}
+                    >
+                      <Button
+                        type="text"
+                        icon={
+                          pkg.isRecommended ? (
+                            <StarFilled style={{ color: '#faad14' }} />
+                          ) : (
+                            <StarOutlined />
+                          )
+                        }
+                        onClick={() => handleSetRecommended(pkg)}
+                        loading={recommendingPackageId === pkg.id}
+                        disabled={isSettingRecommended && recommendingPackageId !== pkg.id}
+                      />
+                    </Tooltip>
                     <Tooltip title="Deactivate">
                       <Button
                         type="text"
-                        danger
                         icon={<StopOutlined />}
                         onClick={() => {
-                          // Implement deactivate logic here
-                          message.success('Package deactivated successfully');
+                          deactivatePackage(pkg.id, {
+                            onSuccess: () => {
+                              message.success('Package deactivated successfully');
+                            },
+                            onError: error => {
+                              message.error('Failed to deactivate package: ' + error.message);
+                            },
+                          });
                         }}
                       />
                     </Tooltip>
@@ -278,21 +443,14 @@ const PackageList: React.FC = () => {
     );
   };
 
-  const getCollapseItems = () => {
-    return [
-      {
-        key: '1',
-        label: (
-          <div className="flex justify-between items-center w-full">
-            <Title level={5} style={{ margin: 0 }}>
-              Currently Active Packages ({activeCount}/{MAX_ACTIVE_PACKAGES})
-            </Title>
-          </div>
-        ),
-        children: renderActivePackages(activePackages, showDrawer),
-      },
-    ];
-  };
+  // Show loading state
+  if (isLoadingTable && isLoadingActive && !apiData && !activePackagesData) {
+    return <DashboardLoader tip="Loading package management..." />;
+  }
+
+  if (error) {
+    return <Alert type="error" message="Failed to load packages" description={error.message} />;
+  }
 
   return (
     <div>
@@ -309,7 +467,23 @@ const PackageList: React.FC = () => {
       </div>
 
       <Collapse
-        items={getCollapseItems()}
+        items={[
+          {
+            key: '1',
+            label: (
+              <div className="flex justify-between items-center w-full">
+                <Title level={5} style={{ margin: 0 }}>
+                  Currently Active Packages ({activeCount}/{MAX_ACTIVE_PACKAGES})
+                </Title>
+              </div>
+            ),
+            children: isLoadingActive ? (
+              <DashboardLoader tip="Loading active packages..." />
+            ) : (
+              renderActivePackages(activePackages, showDrawer)
+            ),
+          },
+        ]}
         defaultActiveKey={['1']}
         className="mb-6"
         style={{ background: '#fff' }}
@@ -319,9 +493,9 @@ const PackageList: React.FC = () => {
         <Title level={5}>All Packages</Title>
         <PackageTable
           onShowDrawer={showDrawer}
-          loading={false}
-          data={packagesList}
-          total={packagesList.length}
+          loading={isLoadingTable}
+          data={apiData?.data?.data || []}
+          total={apiData?.data?.meta?.total || 0}
           tableParams={tableParams}
           onTableChange={handleTableConfigChange}
           filters={{
@@ -338,17 +512,20 @@ const PackageList: React.FC = () => {
         packageData={selectedPackage}
         onClose={handleDrawerClose}
         setDrawerMode={setDrawerMode}
+        loading={isCreating || isUpdating}
         activeCount={activeCount}
         maxActivePackages={MAX_ACTIVE_PACKAGES}
-        onSubmit={values => {
-          console.log('Form values:', values);
-          // Implement form submission logic here
-          handleDrawerClose();
-        }}
+        onSubmit={handleSubmit}
         onDelete={id => {
-          console.log('Delete package:', id);
-          // Implement delete logic here
-          handleDrawerClose();
+          deletePackage(id, {
+            onSuccess: () => {
+              message.success('Package deleted successfully');
+              handleDrawerClose();
+            },
+            onError: error => {
+              message.error('Failed to delete package: ' + error.message);
+            },
+          });
         }}
       />
 
@@ -369,6 +546,7 @@ const PackageList: React.FC = () => {
                 block
                 onClick={() => handleReorder(selectedPackageForReorder, position)}
                 disabled={position === selectedPackageForReorder?.position}
+                loading={switchingPosition === position}
               >
                 Move to Position {position}
               </Button>

@@ -20,17 +20,20 @@ import {
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { tiersList } from '../../services/mockData';
+import { useActivePackages } from '../../api/packageApi';
 
 const { Text } = Typography;
 
 interface PackageData {
   id?: string;
   name: string;
-
   price: number;
   discount: number;
+  discountType: 'PERCENT' | 'WHOLE_NUMBER';
   isActive: boolean;
+  isRecommended: boolean;
   giveawayEntries?: number;
+  fullAccessDays: number;
   position?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -65,11 +68,18 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null);
+  const [currentDiscountType, setCurrentDiscountType] = useState<'PERCENT' | 'WHOLE_NUMBER'>(
+    'PERCENT'
+  );
 
   // Watch form fields
   const isActive = Form.useWatch('active', form);
-  const price = Form.useWatch('price', form);
-  const discount = Form.useWatch('discount', form);
+  const originalPrice = Form.useWatch('originalPrice', form);
+  const discountAmount = Form.useWatch('discountAmount', form);
+  const discountType = Form.useWatch('discountType', form);
+
+  // Inside the PackageDrawer component, add this hook
+  const { data: activePackagesData } = useActivePackages();
 
   // Effect for form reset and initial values
   useEffect(() => {
@@ -85,28 +95,57 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
     }
   }, [open, form, mode, packageData]);
 
-  // Effect for calculating final price
+  // Effect for calculating price based on packageData
   useEffect(() => {
-    if (price && discount) {
-      const finalPrice = price * (1 - discount / 100);
+    if (packageData?.originalPrice && packageData.discountAmount) {
+      const price = Number(packageData.originalPrice);
+      const discount = Number(packageData.discountAmount);
+
+      let finalPrice;
+      if (packageData.discountType === 'PERCENT') {
+        finalPrice = price * (1 - discount / 100);
+      } else {
+        finalPrice = price - discount;
+      }
+
       setCalculatedPrice(finalPrice);
     } else {
-      setCalculatedPrice(price || null);
+      setCalculatedPrice(packageData?.originalPrice || null);
     }
-  }, [price, discount]);
+  }, [packageData]);
+
+  // Effect for calculating final price based on form values
+  useEffect(() => {
+    if (originalPrice) {
+      let finalPrice = originalPrice;
+      if (discountAmount) {
+        if (discountType === 'PERCENT') {
+          finalPrice = originalPrice * (1 - discountAmount / 100);
+        } else {
+          finalPrice = originalPrice - discountAmount;
+        }
+      }
+
+      form.setFieldValue('finalPrice', Number(finalPrice.toFixed(2)));
+    } else {
+      form.setFieldValue('finalPrice', null);
+    }
+  }, [originalPrice, discountAmount, discountType, form]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       const payload = {
         name: values.name,
-
-        price: values.price,
-        discount: values.discount || 0,
+        originalPrice: values.originalPrice,
+        discountType: values.discountType,
+        discountAmount: values.discountAmount ? values.discountAmount : 0,
+        summary: values.summary,
         giveawayEntries: values.giveawayEntries,
+        fullAccessDays: values.fullAccessDays,
         ...(mode === 'edit' && {
           isActive: values.active,
-          // Only include position if the package is active
+          isRecommended: values.active ? values.isRecommended : false,
           ...(values.active && { position: values.position }),
         }),
       };
@@ -139,30 +178,86 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
     });
   };
 
+  const handleRecommendedChange = (checked: boolean) => {
+    if (checked) {
+      const existingRecommended = activePackagesData?.data?.data.find(
+        p => p.isRecommended && p.id !== packageData?.id
+      );
+
+      if (existingRecommended) {
+        Modal.confirm({
+          title: 'Change Recommended Package',
+          content: `This will remove the recommended status from "${existingRecommended.name}" and set "${packageData?.name}" as the new recommended package. Are you sure you want to proceed?`,
+          okText: 'Yes, Update',
+          cancelText: 'No, Cancel',
+          onOk: () => {
+            form.setFieldValue('isRecommended', true);
+          },
+          onCancel: () => {
+            form.setFieldValue('isRecommended', false);
+          },
+        });
+      } else {
+        form.setFieldValue('isRecommended', true);
+      }
+    } else {
+      Modal.confirm({
+        title: 'Remove Recommended Status',
+        content: `Are you sure you want to remove the recommended status from "${packageData?.name}"?`,
+        okText: 'Yes, Remove',
+        cancelText: 'No, Keep',
+        onOk: () => {
+          form.setFieldValue('isRecommended', false);
+        },
+        onCancel: () => {
+          form.setFieldValue('isRecommended', true);
+        },
+      });
+    }
+  };
+
   const renderViewMode = () => (
     <>
       <div className="mb-4 flex justify-end"></div>
       <Descriptions column={1} bordered>
         <Descriptions.Item label="Name">{packageData?.name}</Descriptions.Item>
-
+        <Descriptions.Item label="Full Access Granted">
+          {packageData?.fullAccessDays} days
+        </Descriptions.Item>
         <Descriptions.Item label="Original Price">
           ${packageData?.price?.toFixed(2)}
         </Descriptions.Item>
         {packageData?.discount > 0 && (
           <>
-            <Descriptions.Item label="Discount">{packageData.discount}%</Descriptions.Item>
-            <Descriptions.Item label="Final Price">
-              ${calculatedPrice?.toFixed(2) || packageData?.price?.toFixed(2)}
+            <Descriptions.Item label="Discount">
+              {packageData.discount}
+              {packageData.discountType === 'PERCENT' ? '%' : '$'}
             </Descriptions.Item>
           </>
         )}
+        <Descriptions.Item label="Final Price">
+          $
+          {(
+            (packageData?.price || 0) *
+            (1 -
+              ((packageData?.discountType === 'PERCENT'
+                ? packageData?.discount / 100
+                : packageData?.discount / packageData?.price) || 0)) *
+            1.1
+          ).toFixed(2)}
+        </Descriptions.Item>
         <Descriptions.Item label="Giveaway Entries">
           {packageData?.giveawayEntries}
         </Descriptions.Item>
         <Descriptions.Item label="Status">
-          <Tag color={packageData?.isActive ? 'green' : 'red'}>
-            {packageData?.isActive ? 'Active' : 'Inactive'}
-          </Tag>
+          <Space>
+            <Tag color={packageData?.isActive ? 'green' : 'red'}>
+              {packageData?.isActive ? 'Active' : 'Inactive'}
+            </Tag>
+            {packageData?.isActive && packageData?.isRecommended && (
+              <Tag color="blue">Recommended</Tag>
+            )}
+          </Space>
         </Descriptions.Item>
         <Descriptions.Item label="Created At">
           {packageData?.createdAt
@@ -180,7 +275,12 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
 
   const renderEditMode = () => {
     return (
-      <Form form={form} layout="vertical" name="package_form">
+      <Form
+        form={form}
+        layout="vertical"
+        name="package_form"
+        initialValues={{ discountType: 'PERCENT' }}
+      >
         <Form.Item
           name="name"
           label="Name"
@@ -202,7 +302,15 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
         </Form.Item>
 
         <Form.Item
-          name="price"
+          name="fullAccessDays"
+          label="Full Access Granted (Days)"
+          rules={[{ required: true, message: 'Please enter number of days for full access' }]}
+        >
+          <InputNumber min={1} style={{ width: '100%' }} placeholder="Enter number of days" />
+        </Form.Item>
+
+        <Form.Item
+          name="originalPrice"
           label="Original Price"
           rules={[{ required: true, message: 'Please enter original price' }]}
         >
@@ -215,26 +323,69 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
           />
         </Form.Item>
 
-        <Form.Item name="discount" label="Discount Amount">
-          <InputNumber
-            min={0}
-            max={100}
-            precision={1}
-            style={{ width: '100%' }}
-            placeholder="Enter percentage"
-            suffix="%"
-          />
-        </Form.Item>
-
-        <Form.Item name="finalPrice" label="Final Price">
-          <InputNumber
-            prefix="$"
-            precision={2}
-            style={{ width: '100%' }}
-            disabled
-            className="bg-gray-50"
-          />
-        </Form.Item>
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item name="discountType" label="Discount Type" initialValue="PERCENT">
+              <Select
+                onChange={(value: 'PERCENT' | 'WHOLE_NUMBER') => {
+                  setCurrentDiscountType(value);
+                  form.setFieldValue('discountAmount', null);
+                }}
+              >
+                <Select.Option value="PERCENT">Percentage (%)</Select.Option>
+                <Select.Option value="WHOLE_NUMBER">Fixed Amount ($)</Select.Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="discountAmount"
+              label="Discount Amount"
+              rules={[
+                {
+                  validator: async (_, value) => {
+                    if (value) {
+                      if (currentDiscountType === 'PERCENT' && (value < 1 || value > 100)) {
+                        throw new Error('Percentage must be between 1 and 100');
+                      }
+                      if (currentDiscountType === 'WHOLE_NUMBER' && value < 0) {
+                        throw new Error('Amount must be positive');
+                      }
+                      if (
+                        currentDiscountType === 'WHOLE_NUMBER' &&
+                        originalPrice &&
+                        value > originalPrice
+                      ) {
+                        throw new Error('Discount cannot exceed original price');
+                      }
+                    }
+                  },
+                },
+              ]}
+            >
+              <InputNumber
+                min={currentDiscountType === 'PERCENT' ? 1 : 0}
+                max={currentDiscountType === 'PERCENT' ? 100 : undefined}
+                precision={currentDiscountType === 'PERCENT' ? 0 : 2}
+                style={{ width: '100%' }}
+                prefix={currentDiscountType === 'WHOLE_NUMBER' ? '$' : undefined}
+                suffix={currentDiscountType === 'PERCENT' ? '%' : undefined}
+                placeholder={`Enter ${currentDiscountType === 'PERCENT' ? 'percentage' : 'amount'}`}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item name="finalPrice" label="Final Price">
+              <InputNumber
+                prefix="$"
+                precision={2}
+                style={{ width: '100%' }}
+                disabled
+                className="bg-gray-50"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Form.Item name="summary" label="Summary">
           <Input.TextArea
@@ -247,22 +398,47 @@ const PackageDrawer: React.FC<PackageDrawerProps> = ({
 
         {mode === 'edit' && (
           <>
-            <Form.Item
-              name="active"
-              label="Status"
-              valuePropName="checked"
-              help={
-                activeCount >= maxActivePackages
-                  ? `Maximum ${maxActivePackages} active packages allowed`
-                  : undefined
-              }
-            >
-              <Switch
-                checkedChildren="Active"
-                unCheckedChildren="Inactive"
-                disabled={!editingId && activeCount >= maxActivePackages}
-              />
-            </Form.Item>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="active"
+                  label="Status"
+                  valuePropName="checked"
+                  help={
+                    activeCount >= maxActivePackages
+                      ? `Maximum ${maxActivePackages} active packages allowed`
+                      : undefined
+                  }
+                >
+                  <Switch
+                    checkedChildren="Active"
+                    unCheckedChildren="Inactive"
+                    disabled={!editingId && activeCount >= maxActivePackages}
+                    onChange={checked => {
+                      if (!checked) {
+                        form.setFieldValue('isRecommended', false);
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              {isActive && (
+                <Col span={12}>
+                  <Form.Item
+                    name="isRecommended"
+                    label="Recommended"
+                    valuePropName="checked"
+                    tooltip="Mark this package as recommended to highlight it to users"
+                  >
+                    <Switch
+                      checkedChildren="Yes"
+                      unCheckedChildren="No"
+                      onChange={handleRecommendedChange}
+                    />
+                  </Form.Item>
+                </Col>
+              )}
+            </Row>
 
             {isActive && (
               <Form.Item

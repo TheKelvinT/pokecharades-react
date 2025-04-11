@@ -48,7 +48,7 @@ const MAX_ACTIVE_TIERS = 3; // Maximum allowed active tiers per type (monthly/an
 const calculateFinalPrice = (tier: PricingTier) => {
   const price = tier.originalPrice || 0;
   const discount = tier.discountAmount || 0;
-
+  
   if (tier.discountType === 'PERCENT') {
     return price * (1 - discount / 100);
   }
@@ -64,6 +64,8 @@ const TierList: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'monthly' | 'annual'>('monthly');
   const [reorderModalVisible, setReorderModalVisible] = useState(false);
   const [selectedTierForReorder, setSelectedTierForReorder] = useState<PricingTier | null>(null);
+  const [switchingPosition, setSwitchingPosition] = useState<number | null>(null);
+  const [recommendingTierId, setRecommendingTierId] = useState<string | null>(null);
 
   // Add table config state
   const { tableParams, handleTableChange } = useTableConfig({
@@ -153,25 +155,26 @@ const TierList: React.FC = () => {
       const existingRecommended = tiers.find(t => t.isRecommended && t.id !== tier.id);
 
       if (tier.isRecommended) {
-        // If the tier is already recommended, ask to remove recommendation
         Modal.confirm({
           title: 'Remove Recommended Status',
           content: `Are you sure you want to remove the recommended status from "${tier.name}"?`,
           okText: 'Yes, Remove',
           cancelText: 'No, Keep',
           onOk: () => {
+            setRecommendingTierId(tier.id);
             setRecommended(tier.id, {
               onSuccess: () => {
                 message.success('Recommended status removed successfully');
+                setRecommendingTierId(null);
               },
               onError: error => {
                 message.error('Failed to remove recommended status: ' + error.message);
+                setRecommendingTierId(null);
               },
             });
           },
         });
       } else {
-        // If setting a new recommended tier
         Modal.confirm({
           title: 'Set as Recommended Tier',
           content: existingRecommended
@@ -180,12 +183,15 @@ const TierList: React.FC = () => {
           okText: 'Yes, Update',
           cancelText: 'No, Cancel',
           onOk: () => {
+            setRecommendingTierId(tier.id);
             setRecommended(tier.id, {
               onSuccess: () => {
                 message.success('Recommended tier updated successfully');
+                setRecommendingTierId(null);
               },
               onError: error => {
                 message.error('Failed to update recommended tier: ' + error.message);
+                setRecommendingTierId(null);
               },
             });
           },
@@ -256,9 +262,16 @@ const TierList: React.FC = () => {
                 {/* Pricing */}
                 <div className="text-center mb-6">
                   {tier.discountAmount > 0 && (
-                    <Text delete type="secondary" className="text-lg">
-                      ${tier.originalPrice.toFixed(2)}
-                    </Text>
+                    <div className="mb-2">
+                      <Text delete type="secondary" className="text-lg">
+                        ${tier.originalPrice.toFixed(2)}
+                      </Text>
+                      <Tag color="green" className="ml-2">
+                        {tier.discountType === 'PERCENT'
+                          ? `${tier.discountAmount}% OFF`
+                          : `$${tier.discountAmount.toFixed(2)} OFF`}
+                      </Tag>
+                    </div>
                   )}
                   <div className="flex items-center justify-center">
                     <Text strong className="text-4xl">
@@ -327,9 +340,7 @@ const TierList: React.FC = () => {
                         }}
                       />
                     </Tooltip>
-                    <Tooltip
-                      title={tier.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}
-                    >
+                    <Tooltip title={tier.isRecommended ? 'Remove Recommended' : 'Set as Recommended'}>
                       <Button
                         type="text"
                         icon={
@@ -340,7 +351,8 @@ const TierList: React.FC = () => {
                           )
                         }
                         onClick={() => handleSetRecommended(tier)}
-                        disabled={isSettingRecommended}
+                        loading={recommendingTierId === tier.id}
+                        disabled={isSettingRecommended && recommendingTierId !== tier.id}
                       />
                     </Tooltip>
                     <Tooltip title="Deactivate">
@@ -403,14 +415,27 @@ const TierList: React.FC = () => {
     const targetTier = currentTiers.find(t => t.position === newPosition);
 
     if (targetTier) {
-      reorderTiers({
-        firstTierId: tier.id,
-        secondTierId: targetTier.id,
-        tierType: activeTab === 'monthly' ? 'MONTHLY' : 'YEARLY',
-      });
+      setSwitchingPosition(newPosition);
+      reorderTiers(
+        {
+          firstTierId: tier.id,
+          secondTierId: targetTier.id,
+          tierType: activeTab === 'monthly' ? 'MONTHLY' : 'YEARLY',
+        },
+        {
+          onSuccess: () => {
+            message.success('Tier positions updated successfully');
+            setReorderModalVisible(false);
+            setSelectedTierForReorder(null);
+            setSwitchingPosition(null);
+          },
+          onError: (error) => {
+            message.error('Failed to update tier positions: ' + error.message);
+            setSwitchingPosition(null);
+          },
+        }
+      );
     }
-    setReorderModalVisible(false);
-    setSelectedTierForReorder(null);
   };
 
   // Update getCollapseItems to pass mutation functions
@@ -560,6 +585,7 @@ const TierList: React.FC = () => {
                 block
                 onClick={() => handleReorder(selectedTierForReorder, position)}
                 disabled={position === selectedTierForReorder.position}
+                loading={switchingPosition === position}
               >
                 Move to Position {position}
               </Button>
